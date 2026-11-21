@@ -11,6 +11,7 @@ import { presentOrder } from "../orders/presentation";
 import { ServiceError } from "../errors";
 import { stripeClient } from "./stripe/client";
 import { checkoutParameters } from "./stripe/session";
+import { recordCheckoutSession } from "./stripe/checkout-state";
 import type Stripe from "stripe";
 export async function checkout(
   input: CheckoutRequest,
@@ -93,15 +94,14 @@ export async function checkout(
       409,
     );
   return mutateOrder(request.orderId, async (stored, records) => {
-    stored.stripeSessionId = session.id;
-    stored.stripeCheckoutUrl = session.url!;
-    stored.stripeSessionExpiresAt = new Date(
-      session.expires_at * 1000,
-    ).toISOString();
-    if (typeof session.payment_intent === "string")
-      stored.stripePaymentIntentId = session.payment_intent;
-    stored.operation.phase = "awaiting_payment";
-    stored.order.payment = "requires_action";
+    recordCheckoutSession(stored, {
+      id: session.id,
+      url: session.url!,
+      expiresAt: new Date(session.expires_at * 1000).toISOString(),
+      ...(typeof session.payment_intent === "string"
+        ? { paymentIntentId: session.payment_intent }
+        : {}),
+    });
     await records.put("checkout", stored.order.id, {
       sessionId: session.id,
       state: "created",
