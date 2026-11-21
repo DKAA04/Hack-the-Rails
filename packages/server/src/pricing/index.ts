@@ -52,30 +52,32 @@ export async function revalidate(
       "Supplier offer is expired or expiry is unknown. Search again.",
       409,
     );
+  const snapshot = (offer: (typeof offers)[number]) =>
+    JSON.stringify({
+      price:
+        "total" in offer.price
+          ? {
+              kind: offer.price.kind,
+              total: offer.price.total,
+              completeness: offer.price.completeness,
+              missingComponents: offer.price.missingComponents,
+              breakdown: offer.price.breakdown,
+            }
+          : offer.price,
+      legs: offer.itinerary.legs.map((l) => [
+        l.origin.id,
+        l.destination.id,
+        l.departureUtc,
+        l.arrivalUtc,
+        l.operator,
+      ]),
+      transfers: offer.itinerary.transfers,
+      conditions: offer.conditions,
+      services: offer.includedServices,
+      seller: offer.seller,
+    });
   const changed = offers.some(
-    (o, i) =>
-      JSON.stringify(
-        o.price.kind !== "unknown" && "total" in o.price ? o.price.total : null,
-      ) !==
-        JSON.stringify(
-          "total" in originals[i]!.price ? originals[i]!.price.total : null,
-        ) ||
-      JSON.stringify(
-        o.itinerary.legs.map((l) => [
-          l.origin.id,
-          l.destination.id,
-          l.departureUtc,
-          l.arrivalUtc,
-        ]),
-      ) !==
-        JSON.stringify(
-          originals[i]!.itinerary.legs.map((l) => [
-            l.origin.id,
-            l.destination.id,
-            l.departureUtc,
-            l.arrivalUtc,
-          ]),
-        ),
+    (offer, index) => snapshot(offer) !== snapshot(originals[index]!),
   );
   const unavailable = offers.some((o) => o.availability !== "available");
   const quote = RevalidationResponseSchema.parse({

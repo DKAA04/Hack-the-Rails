@@ -58,5 +58,6 @@ export const CreateOrderRequestSchema = z.object({
   idempotencyKey: IdSchema,
   passengers: z.array(PassengerSchema).min(1),
   email: z.email(),
+  acceptChanges: z.boolean().optional(),
 });
 export type CreateOrderRequest = z.infer<typeof CreateOrderRequestSchema>;
