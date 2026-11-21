@@ -78,8 +78,8 @@ export function OrderStatus({ order, sample = false }: { order: OrderView; sampl
                       <span className="flex min-w-0 items-start gap-2">
                         <Icon name="ticket" size={18} className="mt-0.5 shrink-0 text-text-muted" />
                         <span className="min-w-0">
-                          <span className="font-semibold">{d.typeLabel}</span>
-                          <span className="tnum ml-2 rounded-sm bg-paper px-1.5 py-0.5 font-mono text-body-sm [overflow-wrap:anywhere]">{d.reference}</span>
+                          <span className="font-semibold">{d.typeLabel}</span>{" "}
+                          <span className="tnum ml-1 rounded-sm bg-paper px-1.5 py-0.5 font-mono text-body-sm [overflow-wrap:anywhere]">{d.reference}</span>
                           <span className="block text-caption text-text-muted">
                             {d.issuedAt ? `Issued ${formatDateTime(d.issuedAt)}` : "The seller didn't give an issue time"}
                             {d.travellerCount ? ` · covers ${d.travellerCount} ${d.travellerCount === 1 ? "traveller" : "travellers"}` : ""}
@@ -101,8 +101,8 @@ export function OrderStatus({ order, sample = false }: { order: OrderView; sampl
                       <span className="flex items-center gap-2">
                         <Icon name="ticket" size={18} className="text-text-muted" />
                         <span>
-                          <span className="font-semibold">{t.typeLabel}</span>
-                          {t.reference ? <span className="tnum ml-2 rounded-sm bg-paper px-1.5 py-0.5 font-mono text-body-sm">{t.reference}</span> : null}
+                          <span className="font-semibold">{t.typeLabel}</span>{" "}
+                          {t.reference ? <span className="tnum ml-1 rounded-sm bg-paper px-1.5 py-0.5 font-mono text-body-sm">{t.reference}</span> : null}
                           <span className="block text-caption text-text-muted">Issued {formatDateTime(t.issuedAt)}</span>
                         </span>
                       </span>

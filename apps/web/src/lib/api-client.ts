@@ -13,6 +13,7 @@ import {
   CheckoutRequestSchema,
   CheckoutResponseSchema,
   PlaceLookupResponseSchema,
+  DependencyHealthSchema,
   UpdateTravellersRequestSchema,
   ReserveOrderRequestSchema,
   type UpdateTravellersRequest,
@@ -84,6 +85,7 @@ async function request<T>(
 export const api = {
   health: () => request("/health", HealthSchema),
   capabilities: () => request("/capabilities", CapabilitiesSchema),
+  dependencies: () => request("/health/dependencies", DependencyHealthSchema),
   places: (
     query: string,
     opts: { limit?: number; modes?: Mode[]; signal?: AbortSignal } = {},

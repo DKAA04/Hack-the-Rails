@@ -4,6 +4,35 @@ import assert from "node:assert/strict";
 import { StoredOrderSchema } from "../packages/server/src/orders";
 import { presentOrder } from "../packages/server/src/orders/presentation";
 import { matchesAcceptedSupplier } from "../packages/server/src/booking/workflow";
+import { recordCheckoutSession } from "../packages/server/src/payments/stripe/checkout-state";
+
+test("delayed duplicate Checkout responses preserve newer payment and workflow states", () => {
+  const stored = fixture();
+  const session = {
+    id: "cs_test_existing",
+    url: "https://checkout.stripe.com/test",
+    expiresAt: "2099-01-01T00:00:00Z",
+  };
+  recordCheckoutSession(stored, session);
+  assert.equal(stored.order.payment, "requires_action");
+  assert.equal(stored.operation.phase, "awaiting_payment");
+  stored.order.payment = "captured";
+  stored.order.state = "confirmed";
+  stored.operation.phase = "complete";
+  recordCheckoutSession(stored, session);
+  assert.equal(stored.order.payment, "captured");
+  assert.equal(stored.operation.phase, "complete");
+  assert.equal(stored.order.state, "confirmed");
+  stored.order.payment = "authorized";
+  stored.order.state = "pending";
+  stored.operation.phase = "manual_review";
+  recordCheckoutSession(stored, session);
+  assert.equal(stored.order.payment, "authorized");
+  assert.equal(stored.operation.phase, "manual_review");
+  assert.throws(() =>
+    recordCheckoutSession(stored, { ...session, id: "cs_test_other" }),
+  );
+});
 function fixture() {
   const place = {
     id: "test-place",

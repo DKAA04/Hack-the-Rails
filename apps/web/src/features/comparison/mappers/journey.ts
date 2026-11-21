@@ -538,6 +538,13 @@ function bookability(offer: Offer): string | null {
       : "Availability isn't confirmed.";
   if (offer.freshness.state === "expired")
     return "This offer has expired. Search again for a fresh price.";
+  // Wayward books by holding first; only offers the seller confirms can be
+  // held are reservable (instant-payment-only offers are rejected).
+  const hold = offer.bookingRequirements?.holdSupported ?? null;
+  if (hold === false)
+    return "Instant payment only. Wayward can't book this offer yet because it can't be held first.";
+  if (hold === null)
+    return "The seller hasn't said whether this offer can be held, so Wayward can't book it yet.";
   return null;
 }
 

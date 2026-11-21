@@ -1,5 +1,7 @@
 # Backend development
 
+Current deployed verification (2026-11-21): see [DEPLOYMENT.md](DEPLOYMENT.md). Both Supabase TLS legs now pass after owner SSL enforcement; private-schema transactions still pass. Local CLI and hosted Stripe signed delivery have been verified with distinct endpoint secrets. A fresh browser test on localhost:3000 also completed with a single supplier order/payment, capture and an actual ticket reference. Earlier missing-secret and upstream-TLS notes below record previous checkpoints and are superseded by that evidence. A fresh hosted-browser return remains a separate verification step.
+
 Work on feat/backend. Frontend can fetch and merge origin/feat/backend to adopt additive APIs; rerun pnpm install --frozen-lockfile for the pg, @types/pg and Stripe SDK additions. No frontend-owned source files have been edited.
 
 ## Local configuration
