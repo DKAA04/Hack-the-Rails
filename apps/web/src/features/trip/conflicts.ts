@@ -13,6 +13,11 @@ export interface Conflict {
 export const nameOf = (j: JourneyView) => `the ${j.departureLocal} ${j.dateLabel} from ${j.origin.name}`;
 const short = nameOf;
 
+/** Trip items are saved snapshots: re-check expiry at the moment of use. */
+export function stillBookable(j: JourneyView, now = Date.now()) {
+  return j.bookable && !(j.freshness?.expiresAt && Date.parse(j.freshness.expiresAt) <= now);
+}
+
 export function findConflicts(items: JourneyView[]): Conflict[] {
   const out: Conflict[] = [];
   for (let i = 0; i < items.length - 1; i++) {
@@ -54,12 +59,12 @@ export function findConflicts(items: JourneyView[]): Conflict[] {
     }
   }
   for (const j of items)
-    if (!j.bookable)
+    if (!stillBookable(j))
       out.push({
         kind: "not_bookable",
         severity: "warn",
         between: [j.id],
-        message: `${short(j)}: ${j.notBookableReason ?? "not bookable"}`,
+        message: `${short(j)}: ${j.bookable ? "this offer has expired. Search again for a fresh price." : (j.notBookableReason ?? "not bookable")}`,
       });
   return out;
 }

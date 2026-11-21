@@ -1,6 +1,6 @@
 "use client";
 import Link from "next/link";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Button, ButtonLink, Notice, PageHeader, SampleDataBadge, Skeleton } from "../../components/ui";
 import { api } from "../../lib/api-client";
 import { toErrorView, toPendingEndpointErrorView, type ErrorView } from "../common/mappers/errors";
@@ -73,6 +73,13 @@ function LiveOrder({ orderId, checkoutReturn }: { orderId: string; checkoutRetur
   const { load, refresh, reconcile, setOrder, polling, pollMs, lastChecked, syncing, syncError } = useOrder(orderId, undefined, {
     reconcileOnLoad: checkoutReturn !== null,
   });
+  // Once the return has been handled, drop ?checkout= so a refresh is a plain
+  // status view rather than another "back from payment" reconcile.
+  const [returnNotice] = useState(checkoutReturn);
+  useEffect(() => {
+    if (checkoutReturn && load.status !== "loading" && !syncing)
+      window.history.replaceState(window.history.state, "", window.location.pathname);
+  }, [checkoutReturn, load.status, syncing]);
   const [busy, setBusy] = useState(false);
   const [actionError, setActionError] = useState<ErrorView | null>(null);
   const [payment, setPayment] = useState<PaymentSlotState | null>(null);
@@ -99,12 +106,19 @@ function LiveOrder({ orderId, checkoutReturn }: { orderId: string; checkoutRetur
 
   return (
     <>
-      <PageHeader title="Order status" description={`Order reference ${orderId}`} />
-      {checkoutReturn === "cancelled" ? (
+      <PageHeader
+        title="Order status"
+        description={
+          <>
+            Order reference <span className="font-mono text-body-sm [overflow-wrap:anywhere]">{orderId}</span>
+          </>
+        }
+      />
+      {returnNotice === "cancelled" ? (
         <Notice tone="neutral" title="Payment cancelled" className="mb-6">
           You left the payment page without paying, so nothing was charged. The seller&apos;s hold stays until its deadline.
         </Notice>
-      ) : checkoutReturn === "returned" && (load.status === "loading" || syncing) ? (
+      ) : returnNotice === "returned" && (load.status === "loading" || syncing) ? (
         <p className="mb-6 text-body-sm text-text-muted" role="status">
           Back from payment. We&apos;re checking the result with the payment provider and the seller.
         </p>

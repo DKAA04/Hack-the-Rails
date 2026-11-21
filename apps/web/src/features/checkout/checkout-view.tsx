@@ -3,6 +3,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { Icon } from "../../components/icons";
 import { Badge, Button, ButtonLink, Notice, PageHeader, cx } from "../../components/ui";
 import { api } from "../../lib/api-client";
+import { readDateField } from "../../lib/dom-date";
 import { formatDateTime, plural } from "../../lib/format";
 import { toErrorView, toPendingEndpointErrorView, type ErrorView } from "../common/mappers/errors";
 import type { JourneyView } from "../comparison/mappers/journey";
@@ -10,7 +11,7 @@ import { OrderStatus } from "../account/order-status";
 import { OrderWorkflowPanel } from "../account/order-workflow";
 import { useOrder } from "../account/use-order";
 import { lastSearchFor } from "../search/rerun";
-import { tripTotal } from "../trip/conflicts";
+import { stillBookable, tripTotal } from "../trip/conflicts";
 import { useTrip } from "../trip/store";
 import {
   DOCUMENT_LABEL,
@@ -45,7 +46,14 @@ const emptyDoc = { type: "" as const, number: "", issuingCountry: "", expiresOn:
 
 export function CheckoutView() {
   const trip = useTrip();
-  const bookable = useMemo(() => trip.items.filter((j) => j.bookable), [trip.items]);
+  const [phase, setPhase] = useState<Phase>({ kind: "form" });
+  const inOrder = phase.kind === "order";
+  // Journeys already ordered from this browser aren't offered for booking
+  // again (but stay listed while this checkout shows the order it created).
+  const bookable = useMemo(
+    () => trip.items.filter((j) => (inOrder || (stillBookable(j) && !trip.ordered[j.id])) && j.bookable),
+    [trip.items, trip.ordered, inOrder],
+  );
   const planOnly = trip.items.length - bookable.length;
   const searchIds = useMemo(() => [...new Set(bookable.map((j) => j.searchId))], [bookable]);
   const policy = useMemo(() => documentPolicy(bookable), [bookable]);
@@ -54,7 +62,6 @@ export function CheckoutView() {
   const [travellers, setTravellers] = useState<TravellerDraft[] | null>(null);
   const [contact, setContact] = useState<ContactDraft>({ email: "", phone: "" });
   const [errors, setErrors] = useState<Record<string, string>>({});
-  const [phase, setPhase] = useState<Phase>({ kind: "form" });
   const [accepted, setAccepted] = useState(false);
   const summaryRef = useRef<HTMLDivElement>(null);
   const [failedSubmits, setFailedSubmits] = useState(0);
@@ -87,7 +94,32 @@ export function CheckoutView() {
 
   if (!trip.ready) return <PageHeader title="Checkout" />;
 
-  if (!bookable.length)
+  const alreadyOrdered = trip.items.filter((j) => trip.ordered[j.id]);
+  if (!bookable.length && alreadyOrdered.length && phase.kind !== "order")
+    return (
+      <>
+        <PageHeader title="Checkout" />
+        <div className="rounded-lg border border-dashed border-line-strong bg-surface p-6 md:p-10">
+          <h2 className="font-display text-title-lg">Already ordered</h2>
+          <p className="mt-2 max-w-[60ch] text-text-muted">
+            The bookable {alreadyOrdered.length === 1 ? "journey" : "journeys"} in your trip already {alreadyOrdered.length === 1 ? "has an order" : "have orders"}. Check
+            the status there rather than booking again.
+          </p>
+          <div className="mt-6 flex flex-wrap gap-3">
+            {[...new Set(alreadyOrdered.map((j) => trip.ordered[j.id]!))].map((id) => (
+              <ButtonLink key={id} href={`/orders/${encodeURIComponent(id)}`} icon="ticket">
+                View order
+              </ButtonLink>
+            ))}
+            <ButtonLink href="/" variant="ghost" icon="search">
+              Find journeys
+            </ButtonLink>
+          </div>
+        </div>
+      </>
+    );
+
+  if (!bookable.length && phase.kind !== "order")
     return (
       <>
         <PageHeader title="Checkout" />
@@ -135,7 +167,19 @@ export function CheckoutView() {
   async function submit(e: React.FormEvent) {
     e.preventDefault();
     if (!travellers) return;
-    const errs = validateTravellers(travellers, contact, travelDate, policy);
+    // Adopt dates the fields hold but React never heard about (autofill etc.).
+    const synced = travellers.map((t, i) => ({
+      ...t,
+      bornOn: t.bornOn || readDateField(`t${i}-dob`).value,
+      document: { ...t.document, expiresOn: t.document.expiresOn || readDateField(`t${i}-docexp`).value },
+    }));
+    if (synced.some((t, i) => t.bornOn !== travellers[i]!.bornOn || t.document.expiresOn !== travellers[i]!.document.expiresOn))
+      setTravellers(synced);
+    const errs = validateTravellers(synced, contact, travelDate, policy);
+    synced.forEach((t, i) => {
+      if (errs[`t${i}-dob`] && !t.bornOn && readDateField(`t${i}-dob`).incomplete)
+        errs[`t${i}-dob`] = `Traveller ${i + 1}: that date of birth isn't complete. Check the day, month and year.`;
+    });
     setErrors(errs);
     if (Object.keys(errs).length) {
       setFailedSubmits((n) => n + 1);
@@ -174,6 +218,10 @@ export function CheckoutView() {
       } catch {
         /* storage blocked */
       }
+      trip.markOrdered(
+        bookable.map((j) => j.id),
+        order.id,
+      );
       setPhase({ kind: "order", order: toOrderView(order) });
     } catch (err) {
       setPhase({ kind: "blocked", step: "order", error: toErrorView(err) });
@@ -183,7 +231,7 @@ export function CheckoutView() {
   return (
     <>
       <PageHeader title="Checkout" description="We recheck every price with the seller before anything is reserved or charged." />
-      <div className="grid gap-8 lg:grid-cols-[1fr_22rem] lg:items-start">
+      <div className="grid grid-cols-[minmax(0,1fr)] gap-8 lg:grid-cols-[minmax(0,1fr)_22rem] lg:items-start">
         <div className="min-w-0 space-y-8">
           <section aria-labelledby="review-title" className="rounded-lg border border-line bg-surface p-4 sm:p-6">
             <h2 id="review-title" className="text-title">

@@ -350,3 +350,46 @@ test("checkout readiness comes from workflow.checkoutReady, not a global flag", 
   assert.equal(v.checkoutReady, true);
   assert.equal(v.pollMs, null);
 });
+
+test("seller fare rules embedded in conditions.summary become plain rules; money stays integer", async () => {
+  const { parseConditionsSummary, decimalToMinor } = await import("../apps/web/src/features/comparison/mappers/journey");
+  const { sellerRulesLine } = await import("../apps/web/src/features/comparison/fare-rules");
+  assert.equal(decimalToMinor("10.00", "EUR"), 1000);
+  assert.equal(decimalToMinor("10.5", "EUR"), 1050);
+  assert.equal(decimalToMinor("1500", "JPY"), 1500);
+  assert.equal(decimalToMinor("abc", "EUR"), null);
+  const summary =
+    'Airline: Duffel Airways. Supplier fare rules: {"refund_before_departure":{"allowed":false,"penalty_amount":null,"penalty_currency":null},"change_before_departure":{"allowed":true,"penalty_amount":"10.00","penalty_currency":"EUR"}}. Null penalty values are unknown, not zero.';
+  const r = parseConditionsSummary(summary);
+  assert.equal(r.sellerRules!.refundBeforeDeparture!.allowed, false);
+  assert.deepEqual(r.sellerRules!.changeBeforeDeparture!.fee, { amount: 1000, currency: "EUR" });
+  assert.equal(r.summary!.includes("{"), false);
+  assert.equal(sellerRulesLine(r.sellerRules), "Non-refundable · changes €10.00");
+  const unknownFee = parseConditionsSummary('Supplier fare rules: {"refund_before_departure":{"allowed":true,"penalty_amount":null,"penalty_currency":null}}.');
+  assert.equal(sellerRulesLine(unknownFee.sellerRules), "Refundable, fee unknown · change rules unknown");
+  assert.deepEqual(parseConditionsSummary("Supplier fare rules: {broken"), { summary: "Supplier fare rules: {broken", sellerRules: null });
+});
+
+test("offers past expiresAt are expired now, even if stored as fresh", async () => {
+  const { offerExpired } = await import("../apps/web/src/features/comparison/mappers/journey");
+  const now = Date.parse("2026-11-21T16:00:00Z");
+  assert.equal(offerExpired({ state: "fresh", expiresAt: "2026-11-21T15:59:00Z" }, now), true);
+  assert.equal(offerExpired({ state: "fresh", expiresAt: "2026-11-21T16:30:00Z" }, now), false);
+  assert.equal(offerExpired({ state: "fresh", expiresAt: null }, now), false);
+  const past = { ...offer("e1", { amount: 100, dep: "2026-11-22T06:00:00Z", arr: "2026-11-22T07:00:00Z" }), freshness: { fetchedAt: "2026-01-01T00:00:00Z", expiresAt: "2026-01-01T00:30:00Z", state: "fresh" as const } };
+  const j = toOfferJourney(past, "s");
+  assert.equal(j.bookable, false);
+  assert.equal(j.freshness!.state, "expired");
+});
+
+test("typed API errors map to honest user states (401, 404, 409 expired, 501)", async () => {
+  const { toErrorView } = await import("../apps/web/src/features/common/mappers/errors");
+  const { ApiClientError } = await import("../apps/web/src/lib/api-client");
+  const e = (code: string, status: number) =>
+    new ApiClientError({ version: 1, error: { code: code as never, message: "m", retryable: false, requestId: "r" } }, status);
+  assert.equal(toErrorView(e("UNAUTHORIZED", 401)).code, "UNAUTHORIZED");
+  assert.equal(toErrorView(e("NOT_FOUND", 404)).kind, "not_found");
+  assert.equal(toErrorView(e("QUOTE_EXPIRED", 409)).kind, "expired");
+  assert.equal(toErrorView(e("NOT_IMPLEMENTED", 501)).kind, "not_implemented");
+  assert.equal(toErrorView(e("PROVIDER_UNAVAILABLE", 503)).kind, "unavailable");
+});

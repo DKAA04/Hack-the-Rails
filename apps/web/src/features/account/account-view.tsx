@@ -13,7 +13,7 @@ export function AccountView() {
   return (
     <>
       <PageHeader title="Account" />
-      <div className="grid gap-6 lg:grid-cols-[22rem_1fr]">
+      <div className="grid grid-cols-[minmax(0,1fr)] gap-6 lg:grid-cols-[22rem_minmax(0,1fr)]">
         <section aria-labelledby="profile-title" className="rounded-lg border border-line bg-surface p-4 sm:p-6">
           <div className="flex items-center justify-between">
             <h2 id="profile-title" className="text-title">

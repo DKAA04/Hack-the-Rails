@@ -232,7 +232,7 @@ export function PageHeader({
 }) {
   return (
     <header className="flex flex-col gap-4 pt-8 pb-6 md:flex-row md:items-end md:justify-between md:pt-12">
-      <div className="max-w-[70ch]">
+      <div className="min-w-0 max-w-[70ch]">
         <h1 className="font-display text-headline">{title}</h1>
         {description ? (
           <p className="mt-2 text-body text-text-muted">{description}</p>

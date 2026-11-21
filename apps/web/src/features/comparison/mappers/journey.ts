@@ -104,8 +104,20 @@ export interface PriceView {
 }
 
 export type Aftersale = "supported" | "unsupported" | "unknown";
+export interface SellerRuleView {
+  /** null = the seller didn't say. */
+  allowed: boolean | null;
+  /** Fee as integer minor units; null = unknown (never assumed zero). */
+  fee: MoneyValue | null;
+}
+export interface SellerRulesView {
+  refundBeforeDeparture: SellerRuleView | null;
+  changeBeforeDeparture: SellerRuleView | null;
+}
 export interface ConditionsView {
   summary: string | null;
+  /** Seller's own fare rules, when the summary carries them. */
+  sellerRules: SellerRulesView | null;
   termsUrl: string | null;
   refund: Aftersale;
   exchange: Aftersale;
@@ -326,7 +338,7 @@ const KIND_META: Record<
     label: "Test price",
     tone: "warn",
     explanation:
-      "From a supplier test environment. It can't be booked for real travel.",
+      "From the seller's test environment. It books in test mode only: no real ticket, no real charge.",
   },
   indicative: {
     label: "Indicative",
@@ -510,6 +522,75 @@ function summarise(raw: Itinerary) {
   };
 }
 
+/** "10.00" + EUR -> 1000 minor units, without floating point. */
+export function decimalToMinor(value: string, currency: string): number | null {
+  const m = /^(\d+)(?:\.(\d+))?$/.exec(value.trim());
+  if (!m) return null;
+  let digits = 2;
+  try {
+    digits = new Intl.NumberFormat("en", { style: "currency", currency }).resolvedOptions().maximumFractionDigits ?? 2;
+  } catch {
+    return null;
+  }
+  const frac = (m[2] ?? "").padEnd(digits, "0");
+  if (frac.length > digits && /[1-9]/.test(frac.slice(digits))) return null;
+  return Number(m[1]) * 10 ** digits + Number(frac.slice(0, digits) || "0");
+}
+
+/**
+ * The backend currently embeds the seller's fare rules as JSON inside
+ * conditions.summary ("Supplier fare rules: {...}."). Present them as plain
+ * rules; if the shape is unexpected, keep the original text untouched.
+ */
+export function parseConditionsSummary(summary: string | null): { summary: string | null; sellerRules: SellerRulesView | null } {
+  if (!summary) return { summary, sellerRules: null };
+  const marker = "Supplier fare rules:";
+  const at = summary.indexOf(marker);
+  if (at < 0) return { summary, sellerRules: null };
+  const start = summary.indexOf("{", at);
+  if (start < 0) return { summary, sellerRules: null };
+  let depth = 0;
+  let end = -1;
+  for (let i = start; i < summary.length; i++) {
+    if (summary[i] === "{") depth++;
+    else if (summary[i] === "}") {
+      depth--;
+      if (depth === 0) {
+        end = i;
+        break;
+      }
+    }
+  }
+  if (end < 0) return { summary, sellerRules: null };
+  try {
+    const raw = JSON.parse(summary.slice(start, end + 1)) as Record<
+      string,
+      { allowed?: boolean | null; penalty_amount?: string | null; penalty_currency?: string | null } | null
+    >;
+    const rule = (r: (typeof raw)[string] | undefined): SellerRuleView | null => {
+      if (!r) return null;
+      const fee =
+        r.penalty_amount && r.penalty_currency
+          ? (() => {
+              const amount = decimalToMinor(r.penalty_amount, r.penalty_currency);
+              return amount === null ? null : { amount, currency: r.penalty_currency };
+            })()
+          : null;
+      return { allowed: typeof r.allowed === "boolean" ? r.allowed : null, fee };
+    };
+    const rest = (summary.slice(0, at) + summary.slice(end + 1).replace(/^\s*\.?/, "")).replace(/\s+/g, " ").trim();
+    return {
+      summary: rest || null,
+      sellerRules: {
+        refundBeforeDeparture: rule(raw.refund_before_departure),
+        changeBeforeDeparture: rule(raw.change_before_departure),
+      },
+    };
+  } catch {
+    return { summary, sellerRules: null };
+  }
+}
+
 function baggageFrom(services: Offer["includedServices"]): BaggageView {
   const count = (kind: "cabin_bag" | "checked_bag") => {
     const s = services.filter((x) => x.kind === kind);
@@ -525,6 +606,11 @@ function baggageFrom(services: Offer["includedServices"]): BaggageView {
  * matching test checkout (checked again per order by the backend). Everything
  * else (indicative, historical, ranges, unknown) is never bookable.
  */
+/** Stored freshness is a snapshot; an offer past expiresAt is expired now. */
+export function offerExpired(f: { state: string; expiresAt: string | null }, now = Date.now()) {
+  return f.state === "expired" || (f.expiresAt !== null && Date.parse(f.expiresAt) <= now);
+}
+
 function bookability(offer: Offer): string | null {
   const matching =
     (offer.price.kind === "live_offer" && offer.environment === "live") ||
@@ -536,7 +622,7 @@ function bookability(offer: Offer): string | null {
     return offer.availability === "sold_out"
       ? "Sold out."
       : "Availability isn't confirmed.";
-  if (offer.freshness.state === "expired")
+  if (offerExpired(offer.freshness))
     return "This offer has expired. Search again for a fresh price.";
   // Wayward books by holding first; only offers the seller confirms can be
   // held are reservable (instant-payment-only offers are rejected).
@@ -563,7 +649,7 @@ export function toOfferJourney(offer: Offer, searchId: string): JourneyView {
     providerLabel: providerLabel(offer.provider),
     attribution: null,
     conditions: {
-      summary: offer.conditions.summary,
+      ...parseConditionsSummary(offer.conditions.summary),
       termsUrl: offer.conditions.termsUrl,
       ...offer.conditions.aftersales,
     },
@@ -571,7 +657,7 @@ export function toOfferJourney(offer: Offer, searchId: string): JourneyView {
     includedServices: offer.includedServices,
     availability: offer.availability,
     environment: offer.environment,
-    freshness: offer.freshness,
+    freshness: offerExpired(offer.freshness) ? { ...offer.freshness, state: "expired" as const } : offer.freshness,
     bookable: reason === null,
     notBookableReason: reason,
     testInventory: offer.environment === "test",
