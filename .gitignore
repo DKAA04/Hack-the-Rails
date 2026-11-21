@@ -12,3 +12,5 @@ dist/
 credentials*
 *.pem
 *.key
+
+.vercel/

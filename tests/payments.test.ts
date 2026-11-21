@@ -73,3 +73,18 @@ test("concurrent stale webhook observations cannot regress captured or cancelled
   assert.equal(reconciledPaymentState("cancelled", "processing"), "cancelled");
   assert.equal(reconciledPaymentState("failed", "captured"), "captured");
 });
+
+test("hosted HTTPS test transactions still receive Secure session cookies", () => {
+  const previous = process.env.APP_URL;
+  process.env.APP_URL = "https://wayward.example";
+  try {
+    const session = customerSession(
+      new Request("https://wayward.example/api/orders"),
+      true,
+    );
+    assert.ok(session.cookie?.includes("; Secure"));
+  } finally {
+    if (previous === undefined) delete process.env.APP_URL;
+    else process.env.APP_URL = previous;
+  }
+});
