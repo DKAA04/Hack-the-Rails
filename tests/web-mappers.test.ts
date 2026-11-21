@@ -227,3 +227,24 @@ test("zero-length connector legs are folded into one real change", async () => {
   assert.equal(out.transfers.length, 1);
   assert.equal(out.transfers[0]!.durationMinutes, 5);
 });
+
+test("order view keeps payment, booking and ticket states separate; samples validate", async () => {
+  const { sampleOrderView } = await import("../apps/web/src/features/account/mappers/sample-orders.fixture");
+  const pending = sampleOrderView("pending");
+  assert.equal(pending.paymentLabel, "Authorised, not yet taken");
+  assert.equal(pending.ticketCount, 0);
+  assert.equal(pending.total.kind, "test_offer");
+  const confirmed = sampleOrderView("confirmed");
+  assert.equal(confirmed.ticketCount, 2);
+  assert.equal(confirmed.fulfilmentLabel, "All tickets issued");
+});
+
+test("checkout validation explains age mismatches and sends only contract fields", async () => {
+  const { validateTravellers, toCreateOrderRequest } = await import("../apps/web/src/features/checkout/mappers/order");
+  const t = [{ key: "p1", givenName: "Ana", familyName: "Silva", dateOfBirth: "2000-06-01", age: 30, discounts: [] }];
+  const errs = validateTravellers(t, { email: "ana@", phone: "" }, "2026-11-22");
+  assert.match(errs.email!, /doesn't look complete/);
+  assert.match(errs["t0-dob"]!, /makes them 26/);
+  const req = toCreateOrderRequest("q", "k", t, { email: "ana@example.com", phone: "" }, "2026-11-22");
+  assert.deepEqual(Object.keys(req.passengers[0]!).sort(), ["age", "discounts", "id"]);
+});

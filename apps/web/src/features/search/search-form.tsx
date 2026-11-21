@@ -405,7 +405,7 @@ export function SearchForm({ capabilities }: { capabilities: CapabilitiesState }
           >
             {failure.message}
             {failure.requestId ? (
-              <span className="mt-1 block text-caption">Reference {failure.requestId}</span>
+              <span className="mt-1 block text-caption">Support code {failure.requestId}</span>
             ) : null}
           </Notice>
         ) : null}

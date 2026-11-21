@@ -113,7 +113,7 @@ function ErrorState({ error, onRetry }: { error: ErrorView; onRetry: () => void 
           ? "It may have expired, or the link is incomplete. Searches aren't kept forever because prices go stale."
           : error.message}
       </p>
-      {error.requestId ? <p className="mt-2 text-caption text-text-muted">Reference {error.requestId}</p> : null}
+      {error.requestId ? <p className="mt-2 text-caption text-text-muted">Support code {error.requestId}</p> : null}
       <div className="mt-6 flex flex-wrap gap-3">
         {!notFound && error.retryable ? (
           <Button icon="refresh" onClick={onRetry}>

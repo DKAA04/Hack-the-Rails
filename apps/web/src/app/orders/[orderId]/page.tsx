@@ -1,0 +1,15 @@
+import type { Metadata } from "next";
+import { OrderPage } from "../../../features/account/order-page";
+
+export const metadata: Metadata = { title: "Order" };
+
+export default async function OrderRoute({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ orderId: string }>;
+  searchParams: Promise<{ sample?: string }>;
+}) {
+  const [{ orderId }, { sample }] = await Promise.all([params, searchParams]);
+  return <OrderPage orderId={decodeURIComponent(orderId)} sample={orderId === "sample" ? (sample ?? "confirmed") : null} />;
+}

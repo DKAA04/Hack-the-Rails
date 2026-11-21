@@ -24,6 +24,8 @@
   --color-warn-wash: #fff3d6;
   --color-danger: #b42318;
   --color-danger-wash: #fdecea;
+  --color-warn-on-ink: #ffd27a;
+  --color-danger-on-ink: #ff9b8f;
 
   --radius-sm: 6px;
   --radius-md: 10px;

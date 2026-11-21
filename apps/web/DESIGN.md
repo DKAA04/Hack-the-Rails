@@ -24,6 +24,8 @@ colors:
   warn-wash: "#FFF3D6"
   danger: "#B42318"
   danger-wash: "#FDECEA"
+  warn-on-ink: "#FFD27A"
+  danger-on-ink: "#FF9B8F"
 typography:
   display:
     fontFamily: "Bricolage Grotesque, Inter, system-ui, sans-serif"
@@ -181,6 +183,12 @@ components:
     textColor: "{colors.ok}"
     rounded: "{rounded.sm}"
     padding: "2px 8px"
+  status-warn-on-ink:
+    backgroundColor: "{colors.ink}"
+    textColor: "{colors.warn-on-ink}"
+  status-danger-on-ink:
+    backgroundColor: "{colors.ink}"
+    textColor: "{colors.danger-on-ink}"
   badge-danger:
     backgroundColor: "{colors.danger-wash}"
     textColor: "{colors.danger}"
@@ -232,6 +240,7 @@ A two-pole palette: ink navy for structure and authority, electric lime as the o
 - **Clear Green** (ok, ok-wash): comfortable transfers, confirmed states.
 - **Amber Hold** (warn, warn-wash): tight transfers, partial results, stale data, unknowns that matter.
 - **Signal Red** (danger, danger-wash): impossible connections, failures, validation errors.
+- **On-ink status** (warn-on-ink, danger-on-ink): warning and error icons inside navy panels, where the light-surface status colours fall below 3:1.
 
 ### Named Rules
 **The One Signal Rule.** Lime marks the next action or the current selection, nothing else. If two lime elements compete on one screen, one of them is wrong.
