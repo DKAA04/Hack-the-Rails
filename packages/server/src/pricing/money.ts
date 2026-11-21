@@ -1,5 +1,7 @@
 import { MoneySchema, type Money } from "@wayward/contracts";
 export function decimalMoney(value: string, currency: string): Money {
+  if (!Intl.supportedValuesOf("currency").includes(currency))
+    throw new Error("Unsupported currency minor-unit definition");
   const digits = new Intl.NumberFormat("en", {
     style: "currency",
     currency,

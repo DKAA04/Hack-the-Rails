@@ -30,7 +30,7 @@ export function postgresPool() {
 export async function ensureDatabase() {
   initialized ??= postgresPool()
     .query(
-      `CREATE TABLE IF NOT EXISTS wayward_records (namespace text NOT NULL, id text NOT NULL, payload jsonb NOT NULL, updated_at timestamptz NOT NULL DEFAULT now(), PRIMARY KEY(namespace,id))`,
+      `CREATE SCHEMA IF NOT EXISTS wayward_private; CREATE TABLE IF NOT EXISTS wayward_private.records (namespace text NOT NULL, id text NOT NULL, payload jsonb NOT NULL, updated_at timestamptz NOT NULL DEFAULT now(), PRIMARY KEY(namespace,id)); ALTER TABLE wayward_private.records ENABLE ROW LEVEL SECURITY;`,
     )
     .then(() => undefined)
     .catch(() => {
@@ -44,14 +44,57 @@ export async function ensureDatabase() {
     });
   await initialized;
 }
+export interface RecordTransaction {
+  lock(key: string): Promise<void>;
+  get(
+    namespace: RecordNamespace,
+    id: string,
+    forUpdate?: boolean,
+  ): Promise<unknown | null>;
+  insert(
+    namespace: RecordNamespace,
+    id: string,
+    payload: unknown,
+  ): Promise<void>;
+  put(namespace: RecordNamespace, id: string, payload: unknown): Promise<void>;
+}
+function postgresTransaction(client: PoolClient): RecordTransaction {
+  return {
+    async lock(key) {
+      await client.query(
+        "SELECT pg_advisory_xact_lock(hashtextextended($1,0))",
+        [key],
+      );
+    },
+    async get(namespace, id, forUpdate = false) {
+      const result = await client.query(
+        `SELECT payload FROM wayward_private.records WHERE namespace=$1 AND id=$2${forUpdate ? " FOR UPDATE" : ""}`,
+        [namespace, id],
+      );
+      return result.rows[0]?.payload ?? null;
+    },
+    async insert(namespace, id, payload) {
+      await client.query(
+        "INSERT INTO wayward_private.records(namespace,id,payload) VALUES($1,$2,$3::jsonb)",
+        [namespace, id, JSON.stringify(payload)],
+      );
+    },
+    async put(namespace, id, payload) {
+      await client.query(
+        "INSERT INTO wayward_private.records(namespace,id,payload) VALUES($1,$2,$3::jsonb) ON CONFLICT(namespace,id) DO UPDATE SET payload=EXCLUDED.payload,updated_at=now()",
+        [namespace, id, JSON.stringify(payload)],
+      );
+    },
+  };
+}
 export async function transaction<T>(
-  run: (client: PoolClient) => Promise<T>,
+  run: (records: RecordTransaction) => Promise<T>,
 ): Promise<T> {
   await ensureDatabase();
   const client = await postgresPool().connect();
   try {
     await client.query("BEGIN");
-    const result = await run(client);
+    const result = await run(postgresTransaction(client));
     await client.query("COMMIT");
     return result;
   } catch (error) {
@@ -87,7 +130,7 @@ export async function putRecord(
   if (configuration().databaseConfigured) {
     await ensureDatabase();
     await postgresPool().query(
-      "INSERT INTO wayward_records(namespace,id,payload) VALUES($1,$2,$3::jsonb) ON CONFLICT(namespace,id) DO UPDATE SET payload=EXCLUDED.payload,updated_at=now()",
+      "INSERT INTO wayward_private.records(namespace,id,payload) VALUES($1,$2,$3::jsonb) ON CONFLICT(namespace,id) DO UPDATE SET payload=EXCLUDED.payload,updated_at=now()",
       [namespace, id, JSON.stringify(payload)],
     );
     return;
@@ -108,7 +151,7 @@ export async function getRecord(
   if (configuration().databaseConfigured) {
     await ensureDatabase();
     const result = await postgresPool().query(
-      "SELECT payload FROM wayward_records WHERE namespace=$1 AND id=$2",
+      "SELECT payload FROM wayward_private.records WHERE namespace=$1 AND id=$2",
       [namespace, id],
     );
     return result.rows[0]?.payload ?? null;

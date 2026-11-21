@@ -188,8 +188,15 @@ export async function search(input: SearchIntent): Promise<SearchReceipt> {
 }
 function duration(offer: SearchResult["offers"][number]) {
   return (
-    Date.parse(offer.itinerary.legs.at(-1)!.arrivalUtc) -
-    Date.parse(offer.itinerary.legs[0]!.departureUtc)
+    offer.itinerary.legs.reduce(
+      (total, leg) =>
+        total + Date.parse(leg.arrivalUtc) - Date.parse(leg.departureUtc),
+      0,
+    ) +
+    offer.itinerary.transfers.reduce(
+      (total, transfer) => total + transfer.durationMinutes * 60000,
+      0,
+    )
   );
 }
 export async function getSearch(id: string): Promise<SearchResult> {

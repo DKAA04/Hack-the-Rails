@@ -7,3 +7,5 @@ export * from "./orders";
 export * from "./payments";
 export * from "./payments/stripe";
 export * from "./places";
+export { customerEndpoint } from "./auth";
+export * from "./dependencies";
