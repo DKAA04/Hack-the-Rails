@@ -6,7 +6,7 @@ import { StoredOrderSchema } from "../../orders";
 import { transaction } from "../../db/records";
 import { stripeClient } from "./client";
 import { verifyStripeEvent, readWebhookBody } from "./verification";
-import { paymentStateFromIntent } from "./state";
+import { paymentStateFromIntent, reconciledPaymentState } from "./state";
 const supported = new Set([
   "payment_intent.amount_capturable_updated",
   "payment_intent.succeeded",
@@ -96,7 +96,10 @@ export async function stripeWebhook(request: Request) {
         "Stripe amount/currency differs from the accepted order.",
         409,
       );
-    stored.order.payment = paymentStateFromIntent(intent.status);
+    stored.order.payment = reconciledPaymentState(
+      stored.order.payment,
+      paymentStateFromIntent(intent.status),
+    );
     if (
       ["authorized", "captured", "processing"].includes(stored.order.payment) &&
       stored.order.state === "draft"

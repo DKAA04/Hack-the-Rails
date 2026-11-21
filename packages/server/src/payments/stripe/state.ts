@@ -27,3 +27,18 @@ export function paymentStateFromIntent(
       );
   }
 }
+
+// Two verified handlers can retrieve different snapshots before competing for the order lock.
+// Never let the older handler regress a terminal capture/refund/cancellation.
+export function reconciledPaymentState(
+  current: PaymentState,
+  observed: PaymentState,
+): PaymentState {
+  if (
+    ["captured", "refunded", "partially_refunded", "cancelled"].includes(
+      current,
+    )
+  )
+    return current;
+  return observed;
+}

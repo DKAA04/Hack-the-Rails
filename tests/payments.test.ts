@@ -2,7 +2,10 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { createHmac } from "node:crypto";
 import { verifyStripeEvent } from "../packages/server/src/payments/stripe/verification";
-import { paymentStateFromIntent } from "../packages/server/src/payments/stripe/state";
+import {
+  paymentStateFromIntent,
+  reconciledPaymentState,
+} from "../packages/server/src/payments/stripe/state";
 import { customerSession } from "../packages/server/src/auth";
 import { stripeClient } from "../packages/server/src/payments/stripe/client";
 const secret = "whsec_unit_test_only_not_a_real_credential";
@@ -63,4 +66,10 @@ test("development refuses Stripe live-mode keys without sending requests", () =>
     if (previous === undefined) delete process.env.STRIPE_SECRET_KEY;
     else process.env.STRIPE_SECRET_KEY = previous;
   }
+});
+
+test("concurrent stale webhook observations cannot regress captured or cancelled payments", () => {
+  assert.equal(reconciledPaymentState("captured", "authorized"), "captured");
+  assert.equal(reconciledPaymentState("cancelled", "processing"), "cancelled");
+  assert.equal(reconciledPaymentState("failed", "captured"), "captured");
 });
