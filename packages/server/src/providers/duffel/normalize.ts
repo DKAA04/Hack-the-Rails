@@ -29,6 +29,20 @@ const Segment = z.object({
     )
     .optional(),
 });
+const FareRule = z.object({
+  allowed: z.boolean(),
+  penalty_amount: z.string().nullable().optional(),
+  penalty_currency: z.string().nullable().optional(),
+});
+export const DuffelConditionsSchema = z.object({
+  refund_before_departure: FareRule.nullable().optional(),
+  refund_after_departure: FareRule.nullable().optional(),
+  change_before_departure: FareRule.nullable().optional(),
+  change_after_departure: FareRule.nullable().optional(),
+});
+export function supplierFareRules(value: unknown) {
+  return JSON.stringify(DuffelConditionsSchema.parse(value ?? {}));
+}
 export const DuffelOfferSchema = z.object({
   id: z.string(),
   passengers: z
@@ -58,18 +72,7 @@ export const DuffelOfferSchema = z.object({
   tax_currency: z.string().nullable().optional(),
   expires_at: z.iso.datetime(),
   owner: z.object({ id: z.string(), name: z.string() }),
-  conditions: z
-    .object({
-      refund_before_departure: z
-        .object({ allowed: z.boolean() })
-        .nullable()
-        .optional(),
-      change_before_departure: z
-        .object({ allowed: z.boolean() })
-        .nullable()
-        .optional(),
-    })
-    .optional(),
+  conditions: DuffelConditionsSchema.optional(),
   slices: z
     .array(z.object({ id: z.string(), segments: z.array(Segment).min(1) }))
     .min(1),
@@ -199,7 +202,7 @@ export function normalizeFlight(raw: DuffelOffer, intent: SearchIntent): Offer {
       state: Date.parse(raw.expires_at) > Date.now() ? "fresh" : "expired",
     },
     conditions: {
-      summary: `Airline: ${raw.owner.name}. No Wayward markup; optional services and airport-change connections are excluded unless explicitly included. Refund/change eligibility is subject to supplier fare conditions and penalties.`,
+      summary: `Airline: ${raw.owner.name}. No Wayward markup; optional services and airport-change connections are excluded unless explicitly included. Refund/change eligibility is subject to supplier fare conditions and penalties. Supplier fare rules: ${supplierFareRules(raw.conditions)}. Null penalty values are unknown, not zero.`,
       termsUrl: null,
       aftersales: {
         refund: raw.conditions?.refund_before_departure

@@ -44,7 +44,7 @@ export const DuffelPlaceSchema = z.object({
   time_zone: z.string().nullish(),
   latitude: z.number().nullish(),
   longitude: z.number().nullish(),
-  airports: z.array(z.object({ time_zone: z.string().nullish() })).optional(),
+  airports: z.array(z.object({ time_zone: z.string().nullish() })).nullish(),
 });
 export function normalizeDuffelPlace(
   raw: z.infer<typeof DuffelPlaceSchema>,
