@@ -6,6 +6,7 @@ import { formatDuration, plural } from "../../lib/format";
 import { useTrip } from "../trip/store";
 import { JourneyDetails } from "./journey-details";
 import type { JourneyView } from "./mappers/journey";
+import { sellerRulesLine } from "./fare-rules";
 import { PICK_TITLE, type PickKey } from "./picks";
 
 export function ModeStrip({ journey }: { journey: JourneyView }) {
@@ -99,6 +100,12 @@ export function JourneyCard({
               {j.operators.length ? ` · ${j.operators.slice(0, 3).join(", ")}${j.operators.length > 3 ? " +" + (j.operators.length - 3) : ""}` : ""}
             </span>
           </div>
+          {sellerRulesLine(j.conditions?.sellerRules ?? null) ? (
+            <p className="mt-2 text-body-sm">
+              <span className="text-text-muted">Fare: </span>
+              {sellerRulesLine(j.conditions?.sellerRules ?? null)}
+            </p>
+          ) : null}
           <p className="mt-3 flex flex-wrap gap-2">
             {j.overnight ? (
               <Badge tone="info" icon="moon">

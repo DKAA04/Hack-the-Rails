@@ -35,6 +35,9 @@ interface TripState {
   items: JourneyView[];
   options: JourneyView[];
   saved: SavedTrip[];
+  /** journey id -> order id, for journeys already ordered from this browser. */
+  ordered: Record<string, string>;
+  markOrdered: (journeyIds: string[], orderId: string) => void;
   add: (j: JourneyView) => AddResult;
   remove: (id: string) => void;
   /** Swap an option in for the leg(s) it conflicts with; they become options. */
@@ -53,6 +56,7 @@ const TripContext = createContext<TripState | null>(null);
 const KEY = "wayward.trip.v1";
 const OPTIONS_KEY = "wayward.tripOptions.v1";
 const SAVED_KEY = "wayward.savedTrips.v1";
+const ORDERED_KEY = "wayward.ordered.v1";
 
 function read<T>(key: string, fallback: T): T {
   try {
@@ -75,11 +79,13 @@ export function TripProvider({ children }: { children: ReactNode }) {
   const [items, setItems] = useState<JourneyView[]>([]);
   const [options, setOptions] = useState<JourneyView[]>([]);
   const [saved, setSaved] = useState<SavedTrip[]>([]);
+  const [ordered, setOrdered] = useState<Record<string, string>>({});
 
   useEffect(() => {
     setItems(read<JourneyView[]>(KEY, []));
     setOptions(read<JourneyView[]>(OPTIONS_KEY, []));
     setSaved(read<SavedTrip[]>(SAVED_KEY, []));
+    setOrdered(read<Record<string, string>>(ORDERED_KEY, {}));
     setReady(true);
     const onStorage = (e: StorageEvent) => {
       if (e.key === KEY) setItems(read<JourneyView[]>(KEY, []));
@@ -99,6 +105,14 @@ export function TripProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (ready) write(SAVED_KEY, saved);
   }, [saved, ready]);
+  useEffect(() => {
+    if (ready) write(ORDERED_KEY, ordered);
+  }, [ordered, ready]);
+  const markOrdered = useCallback(
+    (journeyIds: string[], orderId: string) =>
+      setOrdered((o) => ({ ...o, ...Object.fromEntries(journeyIds.map((id) => [id, orderId])) })),
+    [],
+  );
 
   const add = useCallback(
     (j: JourneyView): AddResult => {
@@ -194,6 +208,8 @@ export function TripProvider({ children }: { children: ReactNode }) {
       items,
       options,
       saved,
+      ordered,
+      markOrdered,
       add,
       remove,
       promoteOption,
@@ -206,7 +222,7 @@ export function TripProvider({ children }: { children: ReactNode }) {
       restore,
       deleteSaved,
     }),
-    [ready, items, options, saved, add, remove, promoteOption, roleOf, move, sortByDeparture, clear, has, saveCurrent, restore, deleteSaved],
+    [ready, items, options, saved, ordered, markOrdered, add, remove, promoteOption, roleOf, move, sortByDeparture, clear, has, saveCurrent, restore, deleteSaved],
   );
   return <TripContext.Provider value={value}>{children}</TripContext.Provider>;
 }

@@ -1,6 +1,7 @@
 import { Icon, type IconName } from "../../components/icons";
 import { Badge, cx, type Tone } from "../../components/ui";
 import { formatDateTime } from "../../lib/format";
+import { changeText, refundText } from "./fare-rules";
 import { JourneyTimeline } from "./journey-timeline";
 import type { Aftersale, JourneyView, PriceView } from "./mappers/journey";
 
@@ -91,7 +92,27 @@ export function FareConditions({ journey }: { journey: JourneyView }) {
   ];
   return (
     <section aria-label="Fare conditions">
-      <h4 className="text-label">Conditions</h4>
+      {c.sellerRules ? (
+        <>
+          <h4 className="text-label">Seller&apos;s fare rules</h4>
+          <dl className="mt-2 divide-y divide-line text-body-sm">
+            <div className="flex justify-between gap-4 py-2">
+              <dt>Refund before departure</dt>
+              <dd className="text-right font-semibold">{refundText(c.sellerRules.refundBeforeDeparture)}</dd>
+            </div>
+            <div className="flex justify-between gap-4 py-2">
+              <dt>Change before departure</dt>
+              <dd className="text-right font-semibold">{changeText(c.sellerRules.changeBeforeDeparture)}</dd>
+            </div>
+          </dl>
+          <p className="mt-1 text-caption text-text-muted">
+            These are the seller&apos;s rules. Refunds and changes go through the seller: Wayward can&apos;t process them for you yet.
+          </p>
+          <h4 className="mt-4 text-label">Through Wayward</h4>
+        </>
+      ) : (
+        <h4 className="text-label">Conditions</h4>
+      )}
       <dl className="mt-2 grid grid-cols-3 gap-2 text-body-sm">
         {rows.map(([label, v]) => (
           <div key={label} className="rounded-md bg-paper p-2">

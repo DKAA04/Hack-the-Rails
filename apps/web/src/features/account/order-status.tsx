@@ -13,7 +13,7 @@ export function OrderStatus({ order, sample = false }: { order: OrderView; sampl
         <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
           <div className="min-w-0">
             <p className="text-caption text-text-muted [overflow-wrap:anywhere]">
-              Order {order.id} · placed {formatDateTime(order.createdAt)}
+              Placed {formatDateTime(order.createdAt)}
               {order.updatedAt ? ` · updated ${formatDateTime(order.updatedAt)}` : ""}
             </p>
             {order.workflow ? (
