@@ -63,6 +63,11 @@ export function SearchForm({
   const [showTravellers, setShowTravellers] = useState(false);
   const [sources, setSources] = useState<PlaceSourceView[]>([]);
   const summaryRef = useRef<HTMLDivElement>(null);
+  const [failedSubmits, setFailedSubmits] = useState(0);
+  // Move focus to the error summary after it renders (robust where rAF is throttled).
+  useEffect(() => {
+    if (failedSubmits) summaryRef.current?.focus();
+  }, [failedSubmits]);
   const restored = useRef(false);
 
   useEffect(() => {
@@ -105,7 +110,7 @@ export function SearchForm({
     if (!result.ok) {
       setErrors(result.errors);
       if (Object.keys(result.errors).some((k) => k.startsWith("passenger"))) setShowTravellers(true);
-      requestAnimationFrame(() => summaryRef.current?.focus());
+      setFailedSubmits((n) => n + 1);
       return;
     }
     setErrors({});
@@ -318,7 +323,7 @@ export function SearchForm({
         </summary>
         <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           <SelectField
-            id="sort"
+            id="pref-sort"
             label="What matters most"
             value={s.sort}
             onChange={(v) => set("sort", v as SearchFormState["sort"])}
@@ -329,7 +334,7 @@ export function SearchForm({
             ]}
           />
           <SelectField
-            id="maxTransfers"
+            id="pref-maxTransfers"
             label="Changes"
             value={s.maxTransfers}
             onChange={(v) => set("maxTransfers", v)}
@@ -342,7 +347,7 @@ export function SearchForm({
             ]}
           />
           <SelectField
-            id="cabin"
+            id="pref-cabin"
             label="Class"
             value={s.cabin}
             onChange={(v) => set("cabin", v as SearchFormState["cabin"])}
@@ -380,7 +385,10 @@ export function SearchForm({
         />
       </div>
 
-      <div className="mt-6 flex flex-col-reverse gap-4 sm:flex-row sm:items-center sm:justify-between">
+      <div className="mt-6 flex flex-col gap-4 sm:flex-row-reverse sm:items-center sm:justify-between">
+        <Button type="submit" iconAfter="arrow-right" loading={submitting} disabled={submitting} className="w-full shrink-0 sm:w-auto">
+          {submitting ? "Searching…" : "Find journeys"}
+        </Button>
         <div className="min-w-0 text-caption text-text-muted">
           {sources.length ? (
             <>
@@ -391,9 +399,6 @@ export function SearchForm({
             <span>We only search places you pick from the list, so suppliers get exact IDs.</span>
           )}
         </div>
-        <Button type="submit" iconAfter="arrow-right" loading={submitting} disabled={submitting} className="w-full shrink-0 sm:w-auto">
-          {submitting ? "Searching…" : "Find journeys"}
-        </Button>
       </div>
 
       <div aria-live="polite" className="mt-4 empty:hidden">

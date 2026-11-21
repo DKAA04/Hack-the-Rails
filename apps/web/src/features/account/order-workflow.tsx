@@ -1,7 +1,7 @@
 "use client";
 import type { ReactNode } from "react";
 import { Icon } from "../../components/icons";
-import { Badge, Button, Notice, cx } from "../../components/ui";
+import { Badge, Button, ButtonLink, Notice, cx } from "../../components/ui";
 import { formatDateTime } from "../../lib/format";
 import type { ErrorView } from "../common/mappers/errors";
 import { PHASE_COPY, PROGRESS, type NextAction, type OrderView } from "../checkout/mappers/order";
@@ -88,7 +88,11 @@ export function OrderWorkflowPanel({
         </dl>
       ) : null}
 
-      <div className="mt-5" aria-live="polite">
+      {/* Announce phase changes only; the polling timestamp stays out of the live region. */}
+      <p className="sr-only" aria-live="polite">
+        {w.title}
+      </p>
+      <div className="mt-5">
         {w.nextAction === "poll" && !w.terminal ? (
           <p className="flex items-center gap-2 text-body-sm text-text-muted">
             <span aria-hidden="true" className="size-3 animate-spin rounded-full border-2 border-text-subtle border-r-transparent" />
@@ -98,17 +102,27 @@ export function OrderWorkflowPanel({
             {lastChecked ? ` Last checked ${new Date(lastChecked).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit", second: "2-digit" })}.` : ""}
           </p>
         ) : w.nextAction === "contact_support" || w.phase === "manual_review" ? (
-          <Notice tone="warn" title="Contact support, don't retry">
-            Quote order reference <span className="font-mono">{order.id}</span>. We won&apos;t retry the booking
-            automatically, so nothing will be charged twice.
+          <Notice tone="warn" title="What to do now">
+            Nothing will be retried automatically, so nothing will be charged twice. Wayward doesn&apos;t have a support
+            desk set up yet: keep your order reference <span className="font-mono [overflow-wrap:anywhere]">{order.id}</span>, and check
+            your email for anything from the seller.
           </Notice>
+        ) : w.phase === "failed" || w.phase === "expired" ? (
+          <div className="flex flex-wrap gap-2">
+            <ButtonLink href="/" icon="search">
+              Search again
+            </ButtonLink>
+            <ButtonLink href="/trip" variant="ghost" icon="route">
+              Back to trip
+            </ButtonLink>
+          </div>
         ) : w.nextAction === "provide_travellers" && travellerAction ? (
           travellerAction
         ) : label && onAction ? (
           <Button onClick={() => onAction(w.nextAction)} loading={busy} disabled={busy} iconAfter="arrow-right">
             {label}
           </Button>
-        ) : w.terminal ? null : null}
+        ) : null}
         {actionError ? (
           <Notice
             tone={actionError.kind === "not_implemented" ? "info" : "danger"}

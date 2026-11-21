@@ -58,6 +58,10 @@ export function CheckoutView() {
   const [accepted, setAccepted] = useState(false);
   const idempotencyKey = useRef(newKey());
   const summaryRef = useRef<HTMLDivElement>(null);
+  const [failedSubmits, setFailedSubmits] = useState(0);
+  useEffect(() => {
+    if (failedSubmits) summaryRef.current?.focus();
+  }, [failedSubmits]);
   const travelDate = bookable[0]?.departureUtc.slice(0, 10) ?? new Date().toISOString().slice(0, 10);
 
   useEffect(() => {
@@ -135,7 +139,7 @@ export function CheckoutView() {
     const errs = validateTravellers(travellers, contact, travelDate, policy);
     setErrors(errs);
     if (Object.keys(errs).length) {
-      requestAnimationFrame(() => summaryRef.current?.focus());
+      setFailedSubmits((n) => n + 1);
       return;
     }
     setPhase({ kind: "checking" });
@@ -211,12 +215,12 @@ export function CheckoutView() {
           ) : (
             <>
               <form noValidate onSubmit={submit} aria-labelledby="travellers-title" className="rounded-lg border border-line bg-surface p-4 sm:p-6">
-                <h2 id="travellers-title" className="text-title">
+                <h2 id="travellers-title" tabIndex={-1} className="text-title outline-none">
                   2. Who&apos;s travelling
                 </h2>
                 <p className="mt-1 text-body-sm text-text-muted">
-                  Exactly as on the passport or ID card used for travel. These details stay on this page only: they&apos;re not
-                  saved in your browser.
+                  Exactly as on the passport or ID card used for travel. Every field is required. These details stay on this
+                  page only: they&apos;re not saved in your browser.
                 </p>
                 {errorKeys.length ? (
                   <div ref={summaryRef} tabIndex={-1} role="alert" className="mt-4 rounded-md border border-danger bg-danger-wash p-4 outline-none">
@@ -226,7 +230,7 @@ export function CheckoutView() {
                     <ul className="mt-2 list-disc space-y-1 pl-6 text-body-sm">
                       {errorKeys.map((k) => (
                         <li key={k}>
-                          <a href={`#${k}`} className="underline">
+                          <a href={`#${k}`} className="inline-block py-1 underline">
                             {errors[k]}
                           </a>
                         </li>
@@ -237,7 +241,7 @@ export function CheckoutView() {
                 {policy.required ? (
                   <Notice tone="info" title="This seller needs an ID document for each traveller" className="mt-4">
                     {policy.accepted.length
-                      ? `Accepted: ${policy.accepted.map((d) => DOCUMENT_LABEL[d].toLowerCase()).join(" or ")}.`
+                      ? `Accepted: ${policy.accepted.map((d) => (d === "passport" ? "passport" : "national ID card")).join(" or ")}.`
                       : "The seller didn't say which documents it accepts."}{" "}
                     Document numbers go only to the seller with your booking.
                   </Notice>
@@ -254,8 +258,11 @@ export function CheckoutView() {
                     </div>
                   </fieldset>
                 </fieldset>
-                <div className="mt-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                  <p className="text-caption text-text-muted">Next we ask the seller to confirm price and seats. Nothing is charged at this step.</p>
+                <div className="mt-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between" hidden={phase.kind === "quote" || phase.kind === "ordering"}>
+                  <p className="text-caption text-text-muted">
+                    <span className="tnum font-semibold text-ink lg:hidden">Total {total.knownDisplay}. </span>
+                    Next we ask the seller to confirm price and seats. Nothing is charged at this step.
+                  </p>
                   <Button type="submit" loading={phase.kind === "checking"} disabled={formLocked} iconAfter="arrow-right">
                     {phase.kind === "checking" ? "Checking with seller…" : "Check price and seats"}
                   </Button>
@@ -297,6 +304,10 @@ export function CheckoutView() {
                     onAccept={setAccepted}
                     busy={phase.kind === "ordering"}
                     onContinue={() => placeOrder(phase.quote)}
+                    onChangeDetails={() => {
+                      setPhase({ kind: "form" });
+                      window.setTimeout(() => document.getElementById("travellers-title")?.focus(), 0);
+                    }}
                   />
                 ) : null}
               </div>
@@ -312,7 +323,7 @@ export function CheckoutView() {
         </div>
 
         <aside aria-label="Order summary" className="on-ink rounded-lg bg-ink p-6 text-white lg:sticky lg:top-24">
-          <h2 className="text-title">To pay</h2>
+          <h2 className="text-title">Total</h2>
           <p className="tnum mt-2 font-display text-headline">{total.knownDisplay}</p>
           <p className="mt-1 text-body-sm text-ink-muted">
             {total.complete ? "Searched price. Confirmed with the seller before payment." : "Not a complete total yet."}
@@ -434,6 +445,8 @@ function TravellerFields({
         {t.age !== null ? <span className="font-normal text-text-muted"> · age {t.age} in your search</span> : null}
       </legend>
       <div className="grid gap-4 sm:grid-cols-2">
+        <Field id={`t${i}-given`} label="First and middle names" autoComplete={i === 0 ? "given-name" : "off"} value={t.givenName} error={errors[`t${i}-given`]} onChange={(v) => onChange({ givenName: v })} />
+        <Field id={`t${i}-family`} label="Surname" autoComplete={i === 0 ? "family-name" : "off"} value={t.familyName} error={errors[`t${i}-family`]} onChange={(v) => onChange({ familyName: v })} />
         <SelectField id={`t${i}-title`} label="Title" value={t.title} error={errors[`t${i}-title`]} onChange={(v) => onChange({ title: v as TravellerDraft["title"] })} options={[["", "Choose"], ...TITLES.map((x) => [x.value, x.label] as [string, string])]} />
         <SelectField
           id={`t${i}-gender`}
@@ -448,8 +461,6 @@ function TravellerFields({
             ["m", "Male"],
           ]}
         />
-        <Field id={`t${i}-given`} label="First and middle names" autoComplete={i === 0 ? "given-name" : "off"} value={t.givenName} error={errors[`t${i}-given`]} onChange={(v) => onChange({ givenName: v })} />
-        <Field id={`t${i}-family`} label="Surname" autoComplete={i === 0 ? "family-name" : "off"} value={t.familyName} error={errors[`t${i}-family`]} onChange={(v) => onChange({ familyName: v })} />
         <Field id={`t${i}-dob`} label="Date of birth" type="date" autoComplete={i === 0 ? "bday" : "off"} value={t.bornOn} error={errors[`t${i}-dob`]} onChange={(v) => onChange({ bornOn: v })} />
       </div>
       {policy.required ? (
@@ -506,16 +517,23 @@ function QuotePanel({
   onAccept,
   busy,
   onContinue,
+  onChangeDetails,
 }: {
   quote: QuoteView;
   accepted: boolean;
   onAccept: (v: boolean) => void;
   busy: boolean;
   onContinue: () => void;
+  onChangeDetails: () => void;
 }) {
   const canContinue = quote.status !== "unavailable" && (!quote.requiresAcceptance || accepted);
+  const ref = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    ref.current?.focus();
+  }, [quote.quoteId]);
   return (
-    <Notice tone={quote.tone} title={quote.statusLabel} role="status">
+    <div ref={ref} tabIndex={-1} aria-label={`Seller check: ${quote.statusLabel}`} className="rounded-md outline-none">
+    <Notice tone={quote.tone} title={quote.statusLabel}>
       <p>{quote.message}</p>
       <ul className="mt-2 space-y-1">
         {quote.journeys.map((j) => (
@@ -531,16 +549,23 @@ function QuotePanel({
           I&apos;ve checked the changes and want to continue at the new price and times.
         </label>
       ) : null}
-      {quote.status !== "unavailable" ? (
-        <Button className="mt-4" onClick={onContinue} disabled={!canContinue || busy} loading={busy} iconAfter="arrow-right">
-          Create order
+      <div className="mt-4 flex flex-wrap gap-2">
+        {quote.status !== "unavailable" ? (
+          <Button onClick={onContinue} disabled={!canContinue || busy} loading={busy} iconAfter="arrow-right">
+            Create order
+          </Button>
+        ) : (
+          <ButtonLink href="/" icon="search">
+            Search again
+          </ButtonLink>
+        )}
+        <Button variant="ghost" onClick={onChangeDetails} disabled={busy}>
+          Change details
         </Button>
-      ) : (
-        <ButtonLink href="/" className="mt-4" icon="search">
-          Search again
-        </ButtonLink>
-      )}
+      </div>
+      <p className="mt-2 text-caption">Changing details means we check the price with the seller again.</p>
     </Notice>
+    </div>
   );
 }
 
@@ -582,6 +607,7 @@ function Field({
         maxLength={maxLength}
         onChange={(e) => onChange(e.target.value)}
         aria-invalid={error ? true : undefined}
+        aria-required="true"
         aria-describedby={describedBy}
         className={cx("h-12 w-full rounded-md border bg-surface px-4 focus:border-ink", error ? "border-danger" : "border-line-strong")}
       />
@@ -628,6 +654,7 @@ function SelectField({
         value={value}
         onChange={(e) => onChange(e.target.value)}
         aria-invalid={error ? true : undefined}
+        aria-required="true"
         aria-describedby={describedBy}
         className={cx("h-12 w-full rounded-md border bg-surface px-3 focus:border-ink", error ? "border-danger" : "border-line-strong")}
       >

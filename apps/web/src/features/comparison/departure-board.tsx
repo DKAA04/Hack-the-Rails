@@ -16,11 +16,13 @@ export function DepartureBoard({
   picksFor,
   title,
   note,
+  footer,
 }: {
   journeys: JourneyView[];
   picksFor: (id: string) => PickKey[];
   title: string;
   note: string;
+  footer?: string;
 }) {
   return (
     <section aria-labelledby="board-title" className="overflow-hidden rounded-lg border border-line bg-surface">
@@ -44,6 +46,7 @@ export function DepartureBoard({
           </li>
         ))}
       </ol>
+      {footer ? <p className="border-t border-line bg-paper px-4 py-3 text-caption text-text-muted sm:px-6">{footer}</p> : null}
     </section>
   );
 }
@@ -129,7 +132,7 @@ function DepartureRow({ journey: j, picks }: { journey: JourneyView; picks: Pick
             </Badge>
           ) : null}
           {picks.map((p) => (
-            <Badge key={p} tone="lime">
+            <Badge key={p} tone="lime" icon="sparkle">
               {PICK_TITLE[p]}
             </Badge>
           ))}

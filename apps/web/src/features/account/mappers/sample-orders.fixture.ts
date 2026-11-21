@@ -50,7 +50,7 @@ export const SAMPLE_ORDERS: Record<"pending" | "reserved" | "confirmed" | "revie
     fulfillment: "pending",
     workflow: wf("fulfilling", "poll", { retryAfterMs: 5000 }),
     bookings: [
-      { id: "b1", provider: "duffel", providerBookingId: null, offerIds: ["o1"], state: "pending", settlement: "not_started", fulfillment: "pending", tickets: [], aftersales },
+      { id: "b1", provider: "duffel", providerBookingId: "SAMPLE-PNR", offerIds: ["o1"], state: "confirmed", settlement: "settled", fulfillment: "pending", tickets: [], aftersales },
     ],
   }),
   confirmed: OrderSchema.parse({

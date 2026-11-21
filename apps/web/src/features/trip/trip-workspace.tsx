@@ -79,7 +79,7 @@ export function TripWorkspace() {
     trip.move(j.id, delta);
     const i = items.findIndex((x) => x.id === j.id) + delta;
     setAnnounce(`${nameOf(j)} moved to position ${i + 1} of ${items.length}.`);
-    requestAnimationFrame(() => document.getElementById(`trip-move-${j.id}-${delta}`)?.focus());
+    window.setTimeout(() => document.getElementById(`trip-move-${j.id}-${delta}`)?.focus(), 0);
   }
 
   return (

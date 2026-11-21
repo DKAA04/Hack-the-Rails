@@ -1,4 +1,5 @@
 "use client";
+import { useId } from "react";
 import { Button } from "../../components/ui";
 import { formatMoney, minorDigits } from "../../lib/format";
 import { MODE_LABEL, type JourneyView, type ModeKey } from "./mappers/journey";
@@ -32,7 +33,7 @@ function Check({
   count?: number;
 }) {
   return (
-    <label className="flex cursor-pointer items-center gap-2 rounded-sm text-body-sm has-[:focus-visible]:outline-2 has-[:focus-visible]:outline-focus">
+    <label className="flex min-h-6 cursor-pointer items-center gap-2 rounded-sm text-body-sm has-[:focus-visible]:outline-2 has-[:focus-visible]:outline-focus">
       <input type="checkbox" checked={checked} onChange={(e) => onChange(e.target.checked)} className="size-4 accent-ink" />
       <span className="flex-1">{label}</span>
       {count !== undefined ? <span className="tnum text-caption text-text-muted">{count}</span> : null}
@@ -53,6 +54,7 @@ export function FiltersPanel({
   onChange: (f: Filters) => void;
   currency: string | null;
 }) {
+  const uid = useId();
   const set = (patch: Partial<Filters>) => onChange({ ...filters, ...patch });
   const modes = [...new Set(journeys.flatMap((j) => j.modes))].filter(
     (m): m is ModeKey => m !== "walking" && m !== "transfer",
@@ -98,11 +100,11 @@ export function FiltersPanel({
       <Group title="Price">
         {currency ? (
           <div>
-            <label htmlFor="maxPrice" className="text-body-sm">
+            <label htmlFor={`${uid}-maxPrice`} className="text-body-sm">
               Up to ({currency})
             </label>
             <input
-              id="maxPrice"
+              id={`${uid}-maxPrice`}
               inputMode="numeric"
               placeholder="Any"
               value={filters.maxPrice === null ? "" : String(filters.maxPrice / 10 ** digits)}
@@ -110,10 +112,10 @@ export function FiltersPanel({
                 const v = e.target.value.replace(/\D/g, "");
                 set({ maxPrice: v ? Number(v) * 10 ** digits : null });
               }}
-              aria-describedby="maxPrice-hint"
+              aria-describedby={`${uid}-maxPrice-hint`}
               className="tnum mt-1 h-10 w-full rounded-md border border-line-strong bg-surface px-3"
             />
-            <p id="maxPrice-hint" className="mt-1 text-caption text-text-muted">
+            <p id={`${uid}-maxPrice-hint`} className="mt-1 text-caption text-text-muted">
               {filters.maxPrice !== null
                 ? `Known totals up to ${formatMoney({ amount: filters.maxPrice, currency }, { compact: true })}.`
                 : "Applies to known totals only."}
@@ -136,11 +138,11 @@ export function FiltersPanel({
       </Group>
 
       <Group title="Journey">
-        <label htmlFor="maxDuration" className="block text-body-sm">
+        <label htmlFor={`${uid}-maxDuration`} className="block text-body-sm">
           Longest journey
         </label>
         <select
-          id="maxDuration"
+          id={`${uid}-maxDuration`}
           value={filters.maxDurationMinutes ?? ""}
           onChange={(e) => set({ maxDurationMinutes: e.target.value ? Number(e.target.value) : null })}
           className="h-10 w-full rounded-md border border-line-strong bg-surface px-2"
@@ -152,11 +154,11 @@ export function FiltersPanel({
             </option>
           ))}
         </select>
-        <label htmlFor="maxChanges" className="mt-3 block text-body-sm">
+        <label htmlFor={`${uid}-maxChanges`} className="mt-3 block text-body-sm">
           Changes
         </label>
         <select
-          id="maxChanges"
+          id={`${uid}-maxChanges`}
           value={filters.maxChanges ?? ""}
           onChange={(e) => set({ maxChanges: e.target.value === "" ? null : Number(e.target.value) })}
           className="h-10 w-full rounded-md border border-line-strong bg-surface px-2"

@@ -47,6 +47,10 @@ export function ResultsView({ searchId }: { searchId: string }) {
   const [stepping, setStepping] = useState<-1 | 1 | null>(null);
   const { state: capabilities } = useCapabilities();
   const editRef = useRef<HTMLDivElement>(null);
+  // When the in-place search opens, move focus to its first field.
+  useEffect(() => {
+    if (editing) editRef.current?.querySelector<HTMLElement>("input:not([type=radio]),button")?.focus();
+  }, [editing]);
 
   const fetchResults = useCallback(
     (signal?: AbortSignal) => {
@@ -138,6 +142,9 @@ export function ResultsView({ searchId }: { searchId: string }) {
               >
                 {dayLabel(shiftIsoDate(last.departureDate, -1))}
               </Button>
+              <span className="tnum px-2 text-label" aria-current="date">
+                {dayLabel(last.departureDate)}
+              </span>
               <Button
                 variant="ghost"
                 size="sm"
@@ -157,10 +164,7 @@ export function ResultsView({ searchId }: { searchId: string }) {
             icon="search"
             aria-expanded={editing}
             aria-controls="edit-search"
-            onClick={() => {
-              setEditing((v) => !v);
-              requestAnimationFrame(() => editRef.current?.querySelector<HTMLElement>("input,button")?.focus());
-            }}
+            onClick={() => setEditing((v) => !v)}
           >
             {editing ? "Close search" : "Edit search"}
           </Button>
@@ -185,7 +189,10 @@ export function ResultsView({ searchId }: { searchId: string }) {
         </Notice>
       ) : null}
 
-      <div aria-live="polite" aria-busy={load.status === "loading"}>
+      <p className="sr-only" role="status">
+        {load.status === "loading" ? "Loading results" : load.status === "ready" ? `${load.data.journeys.length} journeys loaded` : ""}
+      </p>
+      <div aria-busy={load.status === "loading"}>
         {load.status === "loading" ? <ResultsSkeleton /> : null}
         {load.status === "error" ? (
           <ErrorState error={load.error} onRetry={() => fetchResults()} />
@@ -316,12 +323,79 @@ function ProviderSummary({ data, onRerun, rerunning }: { data: Results; onRerun:
 
 const TAB_KEYS: PickKey[] = ["cheapest", "fastest", "comfortable"];
 
+function PickPanel({ pick }: { pick: ReturnType<typeof computePicks>[PickKey] }) {
+  const trip = useTrip();
+  const j = pick.journey;
+  if (!j) return <p className="text-body-sm text-ink-muted">{pick.reason}</p>;
+  const role = trip.roleOf(j.id);
+  return (
+    <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+      <div className="max-w-[62ch]">
+        <p className="tnum text-title">
+          {j.departureLocal} → {j.arrivalLocal}
+          <span className="text-ink-muted">
+            {" "}
+            · {formatDuration(j.durationMinutes)} · {j.price.display}
+          </span>
+        </p>
+        <p className="mt-2 text-body-sm text-ink-muted">
+          <span className="font-semibold text-white">Why this one: </span>
+          {pick.reason}
+        </p>
+      </div>
+      <div className="flex shrink-0 gap-2">
+        <a
+          href={`#journey-${j.id}`}
+          className="inline-flex h-10 items-center rounded-md border border-ink-line px-4 text-label text-white no-underline hover:bg-ink-raised"
+        >
+          See it
+        </a>
+        <Button
+          size="sm"
+          variant="primary"
+          icon={role ? "check" : "plus"}
+          aria-pressed={!!role}
+          onClick={() => (role ? trip.remove(j.id) : trip.add(j))}
+        >
+          {role === "option" ? "Saved option" : role ? "In trip" : "Add to trip"}
+        </Button>
+      </div>
+    </div>
+  );
+}
+
+/** Timetable-only results: no dead "Cheapest" tab, just two honest pointers. */
+function PicksStrip({ journeys }: { journeys: Results["journeys"] }) {
+  const picks = useMemo(() => computePicks(journeys), [journeys]);
+  const items = (["fastest", "comfortable"] as PickKey[]).map((k) => picks[k]).filter((p) => p.journey);
+  if (!items.length) return null;
+  return (
+    <section aria-label="Best picks" className="on-ink mt-6 rounded-lg bg-ink p-4 text-white sm:p-6">
+      <ul className="grid gap-4 md:grid-cols-2">
+        {items.map((p) => (
+          <li key={p.key} className="min-w-0">
+            <p className="text-label text-ink-muted">{p.key === "comfortable" ? "Fewest changes" : p.title}</p>
+            <p className="tnum mt-1 text-title">
+              <a href={`#journey-${p.journey!.id}`} aria-label={`${p.key === "comfortable" ? "Fewest changes" : p.title}: ${p.journey!.departureLocal} to ${p.journey!.arrivalLocal}, go to row`} className="text-white underline decoration-ink-line underline-offset-4 hover:decoration-lime">
+                {p.journey!.departureLocal} → {p.journey!.arrivalLocal}
+              </a>
+              <span className="text-ink-muted"> · {p.headline === "Direct" ? "direct" : p.key === "fastest" ? p.headline : p.headline}</span>
+            </p>
+            <p className="mt-1 text-body-sm text-ink-muted">{p.reason}</p>
+          </li>
+        ))}
+      </ul>
+      <p className="mt-4 border-t border-ink-line pt-3 text-caption text-ink-muted">
+        No cheapest pick: timetable sources don&apos;t give prices.
+      </p>
+    </section>
+  );
+}
+
 function Comparison({ journeys }: { journeys: Results["journeys"] }) {
   const picks = useMemo(() => computePicks(journeys), [journeys]);
   const [tab, setTab] = useState<PickKey>(picks.cheapest.journey ? "cheapest" : "fastest");
   const refs = useRef<(HTMLButtonElement | null)[]>([]);
-  const trip = useTrip();
-  const pick = picks[tab];
 
   function onKey(e: React.KeyboardEvent, i: number) {
     const next = e.key === "ArrowRight" ? i + 1 : e.key === "ArrowLeft" ? i - 1 : e.key === "Home" ? 0 : e.key === "End" ? 2 : null;
@@ -363,45 +437,11 @@ function Comparison({ journeys }: { journeys: Results["journeys"] }) {
           );
         })}
       </div>
-      <div role="tabpanel" id={`panel-${tab}`} aria-labelledby={`tab-${tab}`} tabIndex={0} className="p-4 sm:p-6">
-        {pick.journey ? (
-          <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-            <div className="max-w-[62ch]">
-              <p className="tnum text-title">
-                {pick.journey.departureLocal} → {pick.journey.arrivalLocal}
-                <span className="text-ink-muted">
-                  {" "}
-                  · {formatDuration(pick.journey.durationMinutes)} · {pick.journey.price.display}
-                </span>
-              </p>
-              <p className="mt-2 text-body-sm text-ink-muted">
-                <span className="font-semibold text-white">Why this one: </span>
-                {pick.reason}
-              </p>
-            </div>
-            <div className="flex shrink-0 gap-2">
-              <a
-                href={`#journey-${pick.journey.id}`}
-                className="inline-flex h-10 items-center rounded-md border border-ink-line px-4 text-label text-white no-underline hover:bg-ink-raised"
-              >
-                See it
-              </a>
-              <Button
-                size="sm"
-                variant="primary"
-                icon={trip.has(pick.journey.id) ? "check" : "plus"}
-                title={trip.roleOf(pick.journey.id) === "option" ? "Saved as an option to compare" : undefined}
-                aria-pressed={trip.has(pick.journey.id)}
-                onClick={() => (trip.has(pick.journey!.id) ? trip.remove(pick.journey!.id) : trip.add(pick.journey!))}
-              >
-                {trip.roleOf(pick.journey.id) === "option" ? "Saved option" : trip.has(pick.journey.id) ? "In trip" : "Add to trip"}
-              </Button>
-            </div>
-          </div>
-        ) : (
-          <p className="text-body-sm text-ink-muted">{pick.reason}</p>
-        )}
-      </div>
+      {TAB_KEYS.map((k) => (
+        <div key={k} role="tabpanel" id={`panel-${k}`} aria-labelledby={`tab-${k}`} tabIndex={0} hidden={tab !== k} className="p-4 sm:p-6">
+          <PickPanel pick={picks[k]} />
+        </div>
+      ))}
     </section>
   );
 }
@@ -480,7 +520,7 @@ function Loaded({ data, onRerun, rerunning }: { data: Results; onRerun: (() => v
         </Notice>
       ) : null}
 
-      <Comparison journeys={data.journeys} />
+      {data.offerCount ? <Comparison journeys={data.journeys} /> : <PicksStrip journeys={data.journeys} />}
 
       <div className="mt-8 grid gap-6 lg:grid-cols-[16rem_1fr]">
         <aside className="hidden lg:block">
@@ -549,6 +589,7 @@ function Loaded({ data, onRerun, rerunning }: { data: Results; onRerun: (() => v
                   picksFor={pickIds}
                   title={priced.length ? "Also running: timetables only" : "Departures"}
                   note="From public timetables. Real departures, no prices or seats yet."
+                  footer={`Showing the first ${timetable.length} departures the timetable source returned (searches start at 08:00). Later departures need a time-of-day search, which our sources don't support yet.`}
                 />
               ) : null}
             </div>

@@ -1,7 +1,7 @@
 "use client";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { useTrip } from "../features/trip/store";
 import { Icon, type IconName } from "./icons";
 import { cx } from "./ui";
@@ -42,6 +42,14 @@ export function AppShell({ children }: { children: ReactNode }) {
   const pathname = usePathname() ?? "/";
   const { items, ready } = useTrip();
   const online = useOnline();
+  // Client-side navigation keeps focus on the clicked link; move it to the new
+  // page's main region so keyboard and screen-reader users start at the content.
+  const firstPath = useRef(pathname);
+  useEffect(() => {
+    if (pathname === firstPath.current) return;
+    firstPath.current = "";
+    document.getElementById("main")?.focus({ preventScroll: true });
+  }, [pathname]);
   const count = ready ? items.length : 0;
 
   return (

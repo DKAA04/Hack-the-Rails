@@ -106,10 +106,10 @@ export function validateTravellers(
 ): Record<string, string> {
   const e: Record<string, string> = {};
   travellers.forEach((t, i) => {
-    if (!t.title) e[`t${i}-title`] = `Traveller ${i + 1}: choose a title. The seller needs it on the booking.`;
-    if (!t.gender) e[`t${i}-gender`] = `Traveller ${i + 1}: choose the gender shown on the ID.`;
     if (!t.givenName.trim()) e[`t${i}-given`] = `Traveller ${i + 1}: enter first and middle names as on the ID.`;
     if (!t.familyName.trim()) e[`t${i}-family`] = `Traveller ${i + 1}: enter the surname as on the ID.`;
+    if (!t.title) e[`t${i}-title`] = `Traveller ${i + 1}: choose a title. The seller needs it on the booking.`;
+    if (!t.gender) e[`t${i}-gender`] = `Traveller ${i + 1}: choose the gender shown on the ID.`;
     if (!t.bornOn) e[`t${i}-dob`] = `Traveller ${i + 1}: enter a date of birth.`;
     else {
       const a = ageOn(t.bornOn, travelDateIso);
@@ -334,7 +334,7 @@ export const PHASE_COPY: Record<Phase, { title: string; step: string; body: stri
   manual_review: {
     title: "A person needs to check this",
     step: "Manual review",
-    body: "Something needs a human to look at it, so nothing will be retried automatically. Contact support with your order reference.",
+    body: "Something needs a human to look at it, so nothing will be retried automatically.",
     tone: "warn",
   },
   failed: {

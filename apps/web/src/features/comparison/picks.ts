@@ -43,7 +43,18 @@ export function computePicks(journeys: JourneyView[]): Record<PickKey, Pick> {
     [...priced].sort(
       (a, b) => a.price.total!.amount - b.price.total!.amount || byDuration(a, b),
     )[0] ?? null;
-  const fastest = [...journeys].sort(byDuration)[0] ?? null;
+  // Don't lead with a risky change (tight or impossible) that saves only a few
+  // minutes over a safer journey.
+  const quickest = [...journeys].sort(byDuration)[0] ?? null;
+  const safeQuickest =
+    [...journeys]
+      .filter((j) => j.worstTransfer !== "tight" && j.worstTransfer !== "impossible")
+      .sort(byDuration)[0] ?? null;
+  const fastest =
+    quickest && safeQuickest && quickest.id !== safeQuickest.id && safeQuickest.durationMinutes - quickest.durationMinutes <= 10
+      ? safeQuickest
+      : quickest;
+  const riskyQuicker = quickest && fastest && quickest.id !== fastest.id ? quickest : null;
   const comfortable =
     [...journeys].sort(
       (a, b) =>
@@ -69,7 +80,12 @@ export function computePicks(journeys: JourneyView[]): Record<PickKey, Pick> {
       title: PICK_TITLE.fastest,
       journey: fastest,
       headline: fastest ? formatDuration(fastest.durationMinutes) : "None",
-      reason: fastest ? fastestReason(fastest, cheapest) : "No results yet.",
+      reason: fastest
+        ? fastestReason(fastest, cheapest) +
+          (riskyQuicker
+            ? ` The ${riskyQuicker.departureLocal} is ${formatDuration(fastest.durationMinutes - riskyQuicker.durationMinutes)} quicker but relies on a ${riskyQuicker.worstTransfer === "impossible" ? "connection that can't be made" : "tight change"}.`
+            : "")
+        : "No results yet.",
     },
     comfortable: {
       key: "comfortable",
