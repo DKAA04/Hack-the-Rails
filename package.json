@@ -1,0 +1,21 @@
+{
+  "name": "wayward",
+  "private": true,
+  "packageManager": "pnpm@10.32.1",
+  "engines": {
+    "node": ">=22.14"
+  },
+  "scripts": {
+    "dev": "pnpm --filter @wayward/web dev",
+    "typecheck": "pnpm -r typecheck",
+    "build": "pnpm --filter @wayward/web build",
+    "start": "pnpm --filter @wayward/web start",
+    "test": "tsx --test tests/*.test.ts",
+    "test:smoke": "node scripts/smoke.mjs"
+  },
+  "devDependencies": {
+    "typescript": "^5.9.3",
+    "tsx": "^4.21.0",
+    "@types/node": "^22.19.0"
+  }
+}

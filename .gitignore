@@ -1,0 +1,14 @@
+node_modules/
+.next/
+dist/
+.env*
+!.env.example
+*.tsbuildinfo
+*.db
+*.sqlite*
+*.log
+.pnpm-store/
+.local/
+credentials*
+*.pem
+*.key

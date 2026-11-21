@@ -1,0 +1,17 @@
+{
+  "name": "@wayward/server",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@wayward/contracts": "workspace:*",
+    "server-only": "0.0.1",
+    "zod": "4.6.7"
+  }
+}
