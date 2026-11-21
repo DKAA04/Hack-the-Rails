@@ -21,6 +21,31 @@ async function main() {
     return;
   }
   await ensureDatabase();
+  const connection = await postgresPool().connect();
+  let clientTlsEncrypted = false,
+    certificateAuthorized = false,
+    poolerToDatabaseReportedTls: boolean | null = null;
+  try {
+    const stream = (
+      connection as unknown as {
+        connection: { stream: { encrypted?: boolean; authorized?: boolean } };
+      }
+    ).connection.stream;
+    clientTlsEncrypted = stream.encrypted === true;
+    certificateAuthorized = stream.authorized === true;
+    const transport = await connection.query(
+      "SELECT ssl FROM pg_stat_ssl WHERE pid=pg_backend_pid()",
+    );
+    poolerToDatabaseReportedTls = transport.rows[0]?.ssl ?? null;
+    const host = new URL(process.env.DATABASE_URL!).hostname;
+    if (host.endsWith(".supabase.com") || host.endsWith(".supabase.co")) {
+      assert.equal(clientTlsEncrypted, true);
+      assert.equal(certificateAuthorized, true);
+    }
+  } finally {
+    connection.release();
+  }
+
   const info = await postgresPool().query(
     "SELECT has_schema_privilege(current_user,'wayward_private','USAGE') AS schema_usage,has_schema_privilege(current_user,'wayward_private','CREATE') AS schema_create,(SELECT relrowsecurity FROM pg_class WHERE oid='wayward_private.records'::regclass) AS records_rls",
   );
@@ -57,6 +82,9 @@ async function main() {
       schemaCreate: info.rows[0].schema_create,
       privateRecordsRls: true,
       commit: true,
+      clientTlsEncrypted,
+      certificateAuthorized,
+      poolerToDatabaseReportedTls,
       rollback: true,
       duplicateProtection: true,
       developmentFileFallback: false,

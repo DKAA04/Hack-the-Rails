@@ -71,3 +71,17 @@ test("existing result shape remains accepted and timeless journeys never become 
     false,
   );
 });
+
+test("Supabase database URLs cannot disable verified client TLS", async () => {
+  const { databaseConnectionOptions } = await import(
+    "../packages/server/src/db/connection"
+  );
+  const options = databaseConnectionOptions(
+    "postgresql://unit:unit@aws-0-test.pooler.supabase.com:5432/postgres?sslmode=disable",
+  );
+  assert.ok(
+    typeof options.ssl === "object" && options.ssl.rejectUnauthorized === true,
+  );
+  assert.ok(!options.connectionString?.includes("sslmode=disable"));
+  assert.throws(() => databaseConnectionOptions("not-a-database-url"));
+});

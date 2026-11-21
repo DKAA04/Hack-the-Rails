@@ -95,6 +95,23 @@ export function presentOrder(stored: StoredOrder): Order {
                 : "none";
   return OrderSchema.parse({
     ...stored.order,
+    bookings: stored.order.bookings.map((booking) => ({
+      ...booking,
+      aftersales: {
+        refund:
+          booking.aftersales.refund === "unsupported"
+            ? "unsupported"
+            : "unknown",
+        exchange:
+          booking.aftersales.exchange === "unsupported"
+            ? "unsupported"
+            : "unknown",
+        cancellation:
+          booking.aftersales.cancellation === "unsupported"
+            ? "unsupported"
+            : "unknown",
+      },
+    })),
     environment: stored.order.total.kind === "live_offer" ? "live" : "test",
     workflow: OrderWorkflowSchema.parse({
       phase: workflowPhase,

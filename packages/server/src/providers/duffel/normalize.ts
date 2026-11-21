@@ -202,19 +202,11 @@ export function normalizeFlight(raw: DuffelOffer, intent: SearchIntent): Offer {
       state: Date.parse(raw.expires_at) > Date.now() ? "fresh" : "expired",
     },
     conditions: {
-      summary: `Airline: ${raw.owner.name}. No Wayward markup; optional services and airport-change connections are excluded unless explicitly included. Refund/change eligibility is subject to supplier fare conditions and penalties. Supplier fare rules: ${supplierFareRules(raw.conditions)}. Null penalty values are unknown, not zero.`,
+      summary: `Airline: ${raw.owner.name}. No Wayward markup; optional services and airport-change connections are excluded unless explicitly included. Refund/change eligibility is subject to supplier fare conditions and penalties. Supplier fare rules: ${supplierFareRules(raw.conditions)}. Null penalty values are unknown, not zero. Wayward automated aftersales is not implemented.`,
       termsUrl: null,
       aftersales: {
-        refund: raw.conditions?.refund_before_departure
-          ? raw.conditions.refund_before_departure.allowed
-            ? "supported"
-            : "unsupported"
-          : "unknown",
-        exchange: raw.conditions?.change_before_departure
-          ? raw.conditions.change_before_departure.allowed
-            ? "supported"
-            : "unsupported"
-          : "unknown",
+        refund: "unknown",
+        exchange: "unknown",
         cancellation: "unknown",
       },
     },

@@ -13,6 +13,7 @@ import {
 } from "../providers/duffel/transactions";
 import { stripeClient } from "./stripe/client";
 import { paymentStateFromIntent, reconciledPaymentState } from "./stripe/state";
+import { supplierReadyForCapture } from "./policy";
 import { ServiceError } from "../errors";
 import type Stripe from "stripe";
 async function customerPayment(
@@ -143,6 +144,13 @@ export async function reconcileWorkflow(id: string): Promise<Order> {
     return presentOrder(stored);
   const booking = stored.order.bookings[0];
   if (!booking?.providerBookingId) return presentOrder(stored);
+  if (booking.state === "cancelled")
+    return mutateOrder(id, (s) => {
+      s.operation.phase = "manual_review";
+      s.operation.lastError =
+        "Supplier booking is cancelled. Do not settle or capture; reconcile any existing supplier funds manually.";
+      return presentOrder(s);
+    });
   if (booking.settlement !== "settled") {
     if (stored.operation.settlementAttemptedAt) {
       return mutateOrder(id, (s) => {
@@ -227,6 +235,13 @@ export async function reconcileWorkflow(id: string): Promise<Order> {
       s.operation.phase = "fulfilling";
       return presentOrder(s);
     });
+  if (!supplierReadyForCapture(stored.order))
+    return mutateOrder(id, (s) => {
+      s.operation.phase = "manual_review";
+      s.operation.lastError =
+        "Supplier documents exist but the booking is not active/confirmed/settled. Customer capture is blocked; no refund or reversal is assumed.";
+      return presentOrder(s);
+    });
   if (intent.status === "requires_capture") {
     const claimed = await mutateOrder(id, (s) => {
       if (s.operation.captureAttemptedAt) return false;
@@ -269,12 +284,7 @@ export async function reconcileWorkflow(id: string): Promise<Order> {
     }
   }
   return mutateOrder(id, (s) => {
-    if (
-      s.order.payment === "captured" &&
-      s.order.bookings.every(
-        (b) => b.settlement === "settled" && b.fulfillment === "fulfilled",
-      )
-    ) {
+    if (s.order.payment === "captured" && supplierReadyForCapture(s.order)) {
       s.order.state = "confirmed";
       s.order.fulfillment = "fulfilled";
       s.operation.phase = "complete";

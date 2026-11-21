@@ -1,4 +1,5 @@
 import { test } from "node:test";
+import { supplierReadyForCapture } from "../packages/server/src/payments/policy";
 import assert from "node:assert/strict";
 import { StoredOrderSchema } from "../packages/server/src/orders";
 import { presentOrder } from "../packages/server/src/orders/presentation";
@@ -202,3 +203,17 @@ test("unknown held itinerary cannot be treated as accepted and stale reservation
     assert.equal(presentOrder(stored).workflow?.phase, "manual_review");
     assert.equal(presentOrder(stored).workflow?.nextAction, "contact_support");
   }));
+
+test("cancelled or partially fulfilled supplier bookings cannot authorize capture even when documents remain", () => {
+  const stored = fixture();
+  const booking = stored.order.bookings[0]!;
+  booking.state = "confirmed";
+  booking.settlement = "settled";
+  booking.fulfillment = "fulfilled";
+  assert.equal(supplierReadyForCapture(stored.order), true);
+  booking.state = "cancelled";
+  assert.equal(supplierReadyForCapture(stored.order), false);
+  booking.state = "confirmed";
+  booking.fulfillment = "partial";
+  assert.equal(supplierReadyForCapture(stored.order), false);
+});

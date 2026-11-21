@@ -348,6 +348,12 @@ export async function settleHeldOrder(
   order: DuffelOrder,
 ): Promise<DuffelPayment> {
   assertTestTransaction(order.live_mode);
+  if (order.cancelled_at)
+    throw new ServiceError(
+      "CONFLICT",
+      "Supplier order is cancelled; payment must not be submitted.",
+      409,
+    );
   if (!order.payment_status.awaiting_payment)
     throw new ServiceError(
       "CONFLICT",

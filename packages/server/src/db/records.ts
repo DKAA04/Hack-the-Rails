@@ -4,6 +4,7 @@ import { resolve, join } from "node:path";
 import { randomUUID } from "node:crypto";
 import { configuration } from "../config";
 import { ServiceError } from "../errors";
+import { databaseConnectionOptions } from "./connection";
 import { recordsMigration } from "./migrations/001-records";
 export type RecordNamespace =
   | "search"
@@ -21,7 +22,7 @@ export function postgresPool() {
       503,
     );
   pool ??= new Pool({
-    connectionString: process.env.DATABASE_URL,
+    ...databaseConnectionOptions(process.env.DATABASE_URL),
     max: 5,
     connectionTimeoutMillis: 5000,
     idleTimeoutMillis: 10000,
