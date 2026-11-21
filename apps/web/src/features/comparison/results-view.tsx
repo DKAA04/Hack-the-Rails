@@ -470,15 +470,22 @@ function Loaded({ data, onRerun, rerunning }: { data: Results; onRerun: (() => v
 
   if (!data.journeys.length) {
     const failed = data.state === "failed";
+    const noSource = data.asked === 0;
     return (
       <>
         <ProviderSummary data={data} onRerun={onRerun} rerunning={rerunning} />
         <div className="mt-6 rounded-lg border border-dashed border-line-strong bg-surface p-6 md:p-10">
           <h2 className="font-display text-title-lg">
-            {failed ? "No source could answer this search" : "Nothing found for this route and date"}
+            {noSource
+              ? "No connected source covers this search yet"
+              : failed
+                ? "No source could answer this search"
+                : "Nothing found for this route and date"}
           </h2>
           <p className="mt-2 max-w-[60ch] text-body text-text-muted">
-            {failed
+            {noSource
+              ? "None of the ways to travel you picked has a connected seller or timetable yet, so there was nothing to ask. Switch on flights or trains, or try a route our sources cover."
+              : failed
               ? "That's a supplier problem, not a sign that no journeys exist. The details are above. Try again, or switch on other ways to travel."
               : "The sources that answered had no journeys here. Try a nearby city or station, another date, or more ways to travel. Public timetables currently cover Berlin and Brandenburg in detail."}
           </p>
@@ -486,7 +493,7 @@ function Loaded({ data, onRerun, rerunning }: { data: Results; onRerun: (() => v
             <ButtonLink href="/" icon="search">
               Change search
             </ButtonLink>
-            {failed && onRerun ? (
+            {failed && !noSource && onRerun ? (
               <Button variant="ghost" icon="refresh" onClick={onRerun} loading={rerunning}>
                 Try again
               </Button>

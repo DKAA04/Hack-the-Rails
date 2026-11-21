@@ -606,6 +606,11 @@ function baggageFrom(services: Offer["includedServices"]): BaggageView {
  * matching test checkout (checked again per order by the backend). Everything
  * else (indicative, historical, ranges, unknown) is never bookable.
  */
+/** Stored freshness is a snapshot; an offer past expiresAt is expired now. */
+export function offerExpired(f: { state: string; expiresAt: string | null }, now = Date.now()) {
+  return f.state === "expired" || (f.expiresAt !== null && Date.parse(f.expiresAt) <= now);
+}
+
 function bookability(offer: Offer): string | null {
   const matching =
     (offer.price.kind === "live_offer" && offer.environment === "live") ||
@@ -617,7 +622,7 @@ function bookability(offer: Offer): string | null {
     return offer.availability === "sold_out"
       ? "Sold out."
       : "Availability isn't confirmed.";
-  if (offer.freshness.state === "expired")
+  if (offerExpired(offer.freshness))
     return "This offer has expired. Search again for a fresh price.";
   // Wayward books by holding first; only offers the seller confirms can be
   // held are reservable (instant-payment-only offers are rejected).
@@ -652,7 +657,7 @@ export function toOfferJourney(offer: Offer, searchId: string): JourneyView {
     includedServices: offer.includedServices,
     availability: offer.availability,
     environment: offer.environment,
-    freshness: offer.freshness,
+    freshness: offerExpired(offer.freshness) ? { ...offer.freshness, state: "expired" as const } : offer.freshness,
     bookable: reason === null,
     notBookableReason: reason,
     testInventory: offer.environment === "test",
