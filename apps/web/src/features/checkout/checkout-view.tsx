@@ -196,7 +196,7 @@ export function CheckoutView() {
   return (
     <>
       <PageHeader title="Checkout" description="We recheck every price with the seller before anything is reserved or charged." />
-      <div className="grid gap-8 lg:grid-cols-[1fr_22rem] lg:items-start">
+      <div className="grid grid-cols-[minmax(0,1fr)] gap-8 lg:grid-cols-[minmax(0,1fr)_22rem] lg:items-start">
         <div className="min-w-0 space-y-8">
           <section aria-labelledby="review-title" className="rounded-lg border border-line bg-surface p-4 sm:p-6">
             <h2 id="review-title" className="text-title">

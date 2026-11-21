@@ -94,7 +94,7 @@ export function TripWorkspace() {
       <p role="status" aria-live="polite" className="sr-only">
         {announce}
       </p>
-      <div className="grid gap-6 lg:grid-cols-[1fr_22rem] lg:items-start">
+      <div className="grid grid-cols-[minmax(0,1fr)] gap-6 lg:grid-cols-[minmax(0,1fr)_22rem] lg:items-start">
         <div className="min-w-0">
         <ol aria-label="Trip legs" className="space-y-0">
           {items.map((j, i) => (

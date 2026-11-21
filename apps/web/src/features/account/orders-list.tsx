@@ -23,7 +23,7 @@ export function OrdersList() {
   return (
     <>
       <PageHeader title="Orders and tickets" description="Every order shows payment, booking and tickets separately, because they don't always move together." />
-      <div className="grid gap-6 lg:grid-cols-[1fr_22rem]">
+      <div className="grid grid-cols-[minmax(0,1fr)] gap-6 lg:grid-cols-[minmax(0,1fr)_22rem]">
         <section aria-labelledby="device-orders" className="rounded-lg border border-line bg-surface p-4 sm:p-6">
           <h2 id="device-orders" className="text-title">
             Orders from this device
