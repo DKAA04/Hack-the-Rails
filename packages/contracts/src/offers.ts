@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { OfferBookingRequirementsSchema } from "./booking";
 import { IdSchema, MoneySchema, UtcSchema } from "./common";
 import { ItinerarySchema } from "./journeys";
 import { SearchReceiptSchema } from "./search";
@@ -95,6 +96,7 @@ export const OfferSchema = z
       }),
     ),
     reservationState: z.enum(["not_reserved", "held", "unknown"]),
+    bookingRequirements: OfferBookingRequirementsSchema.optional(),
   })
   .superRefine((v, c) => {
     if (v.price.kind === "live_offer" && v.environment !== "live")

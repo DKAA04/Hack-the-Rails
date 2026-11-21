@@ -31,6 +31,24 @@ const Segment = z.object({
 });
 export const DuffelOfferSchema = z.object({
   id: z.string(),
+  passengers: z
+    .array(
+      z.object({
+        id: z.string(),
+        age: z.number().nullable().optional(),
+        type: z.string().optional(),
+      }),
+    )
+    .optional(),
+  payment_requirements: z
+    .object({
+      requires_instant_payment: z.boolean(),
+      price_guarantee_expires_at: z.iso.datetime().nullable().optional(),
+      payment_required_by: z.iso.datetime().nullable().optional(),
+    })
+    .optional(),
+  passenger_identity_documents_required: z.boolean().optional(),
+  supported_passenger_identity_document_types: z.array(z.string()).optional(),
   live_mode: z.boolean(),
   total_amount: z.string(),
   total_currency: z.string(),
@@ -96,6 +114,15 @@ export function normalizeFlight(raw: DuffelOffer, intent: SearchIntent): Offer {
   itinerary.completeness = itinerary.missingConnections.length
     ? "partial"
     : "complete";
+  if (raw.slices.every((slice) => slice.segments.length === 1))
+    itinerary.compatibility = "verified";
+  const unused = [...(raw.passengers ?? [])];
+  const passengerMappings = intent.passengers.flatMap((passenger) => {
+    const index = unused.findIndex((p) => p.age === passenger.age);
+    if (index < 0) return [];
+    const [matched] = unused.splice(index, 1);
+    return [{ passengerId: passenger.id, providerPassengerId: matched!.id }];
+  });
   const total = decimalMoney(raw.total_amount, raw.total_currency);
   const segments = raw.slices.flatMap((s) => s.segments);
   const included = (kind: string) =>
@@ -211,5 +238,18 @@ export function normalizeFlight(raw: DuffelOffer, intent: SearchIntent): Offer {
         : []),
     ],
     reservationState: "not_reserved",
+    bookingRequirements: {
+      holdSupported: raw.payment_requirements
+        ? !raw.payment_requirements.requires_instant_payment
+        : null,
+      priceGuaranteeExpiresAt:
+        raw.payment_requirements?.price_guarantee_expires_at ?? null,
+      paymentRequiredBy: raw.payment_requirements?.payment_required_by ?? null,
+      identityDocumentsRequired:
+        raw.passenger_identity_documents_required ?? null,
+      supportedIdentityDocuments:
+        raw.supported_passenger_identity_document_types ?? [],
+      passengerMappings,
+    },
   });
 }
