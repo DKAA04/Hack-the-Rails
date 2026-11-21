@@ -13,7 +13,7 @@ for (const path of ["health", "capabilities"]) {
       data.providers.every(
         (p) =>
           p.connectivity === "not_checked" &&
-          Object.values(p.operations).every((s) => s !== "available"),
+          p.operations.book !== "available" && p.operations.fulfillment !== "available",
       ),
     );
   }
@@ -59,10 +59,9 @@ const intent = {
   naturalLanguage: null,
 };
 for (const [path, body] of [
-  ["search", intent],
   [
     "quotes/revalidate",
-    { offerIds: ["offer:opaque"], searchId: "search:opaque" },
+    { offerIds: ["offer:opaque"], searchId: "00000000-0000-4000-8000-000000000000" },
   ],
   [
     "orders",
@@ -83,12 +82,15 @@ for (const [path, body] of [
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
   });
-  assert.equal(r.status, 501, path);
-  assert.equal((await r.json()).error.code, "NOT_IMPLEMENTED");
+  assert.equal(r.status, path === "quotes/revalidate" ? 404 : 501, path);
+  assert.equal(
+    (await r.json()).error.code,
+    path === "quotes/revalidate" ? "NOT_FOUND" : "NOT_IMPLEMENTED",
+  );
 }
 for (const path of ["search/missing", "orders/missing"]) {
   const r = await fetch(`${base}/api/${path}`);
-  assert.equal(r.status, 501);
+  assert.equal(r.status, path.startsWith("search/") ? 404 : 501);
 }
 const invalid = await fetch(`${base}/api/search`, {
   method: "POST",

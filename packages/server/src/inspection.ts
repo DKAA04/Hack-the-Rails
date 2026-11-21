@@ -9,7 +9,10 @@ export function health() {
     timestamp: new Date().toISOString(),
     environment: c.environment,
     configurationValid: c.valid,
-    database: { configured: c.databaseConfigured, connectivity: "not_checked" },
+    database: {
+      configured: c.databaseConfigured,
+      connectivity: "not_checked",
+    },
   });
 }
 export function capabilities() {
@@ -21,7 +24,10 @@ export function capabilities() {
     payments: credentialsPresent("STRIPE_SECRET_KEY")
       ? "not_implemented"
       : "unconfigured",
-    persistence: c.databaseConfigured ? "not_implemented" : "unconfigured",
+    persistence:
+      c.databaseConfigured || c.environment === "development"
+        ? "available"
+        : "unconfigured",
     naturalLanguage: credentialsPresent("OPENAI_API_KEY")
       ? "not_implemented"
       : "unconfigured",

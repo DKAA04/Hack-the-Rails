@@ -112,6 +112,28 @@ export type Offer = z.infer<typeof OfferSchema>;
 export const SearchResultSchema = SearchReceiptSchema.extend({
   offers: z.array(OfferSchema),
   warnings: z.array(z.string()),
+  timetableJourneys: z
+    .array(
+      z.object({
+        itinerary: ItinerarySchema,
+        source: z.string(),
+        attribution: z.string(),
+        price: z.object({ kind: z.literal("unknown") }),
+        availability: z.literal("unknown"),
+        bookingSupported: z.literal(false),
+      }),
+    )
+    .optional(),
+  providerStatuses: z
+    .array(
+      z.object({
+        provider: z.string(),
+        status: z.enum(["complete", "failed", "unconfigured", "unsupported"]),
+        message: z.string().nullable(),
+      }),
+    )
+    .optional(),
+  updatedAt: UtcSchema.optional(),
 });
 export type SearchResult = z.infer<typeof SearchResultSchema>;
 export const RevalidationRequestSchema = z.object({

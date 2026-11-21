@@ -195,17 +195,15 @@ export async function lookupPlaces(input: PlaceLookupRequest) {
         run: async () => {
           const url = new URL("https://api.duffel.com/places/suggestions");
           url.searchParams.set("query", request.query);
-          const data = z
-            .object({ data: z.array(DuffelPlaceSchema) })
-            .parse(
-              await supplierJson(url, {
-                headers: {
-                  Authorization: `Bearer ${process.env.DUFFEL_ACCESS_TOKEN}`,
-                  "Duffel-Version": "v2",
-                  Accept: "application/json",
-                },
-              }),
-            );
+          const data = z.object({ data: z.array(DuffelPlaceSchema) }).parse(
+            await supplierJson(url, {
+              headers: {
+                Authorization: `Bearer ${process.env.DUFFEL_ACCESS_TOKEN}`,
+                "Duffel-Version": "v2",
+                Accept: "application/json",
+              },
+            }),
+          );
           const places = data.data
             .map(normalizeDuffelPlace)
             .filter((p): p is Place => p !== null);
