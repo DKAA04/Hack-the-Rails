@@ -77,7 +77,7 @@ Guest orders require their originating HttpOnly cookie. HTTPS cookies are Secure
 - Unavailable: live travel purchases/charges, instant-only flight purchasing, multi-supplier protected purchases, infant association, automated aftersales, account recovery and natural-language parsing. Comfort ranking uses transfer-related heuristics, not a verified seat-quality measurement.
 - Coverage is regional, not Europe-wide commercial inventory. Open-Meteo's free geocoding adapter is development-only/non-commercial. Broader use needs appropriate supplier access and licensing.
 
-The deployed cfaf8b3 checkpoint passed strict type checking, 46 deterministic tests and a production build. [SERVICE_EVIDENCE.md](docs/SERVICE_EVIDENCE.md) and [DEPLOYMENT.md](docs/DEPLOYMENT.md) distinguish implementation, external evidence and gaps.
+The final integration includes Claude's `0e9c542` frontend revision and passes strict type checking, 49 deterministic tests and a production build. The release endpoint identifies the exact deployed SHA. [SERVICE_EVIDENCE.md](docs/SERVICE_EVIDENCE.md) and [DEPLOYMENT.md](docs/DEPLOYMENT.md) distinguish implementation, external evidence and gaps.
 
 ## Collaboration and API
 

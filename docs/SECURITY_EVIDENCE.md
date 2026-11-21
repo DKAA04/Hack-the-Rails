@@ -15,7 +15,7 @@ Prepared for the owner's intended Aikido-sponsored cybersecurity-track entry. Th
 
 ## Checks run
 
-- `pnpm typecheck`, `pnpm test`, `pnpm build`: latest staged integration passed; 47 deterministic tests at this checkpoint.
+- `pnpm typecheck`, `pnpm test`, `pnpm build`: final integration passed; 49 deterministic tests, including Claude's `0e9c542` frontend revision.
 - `pnpm audit --prod --audit-level high`: reported **No known vulnerabilities found** on 2026-11-21. This is a registry advisory snapshot, not proof that dependencies are vulnerability-free.
 - Selected credential-pattern inspection of tracked text files found no candidates for Stripe keys, webhook secrets, Duffel tokens or private-key headers. It did not read or print ignored secret files and does not establish a complete historical secret audit.
 - Actual service checks: PostgreSQL transactional writes/rollback and duplicate protection; client certificate authorization and both TLS legs; signed webhook delivery and duplicate replay; independently counted supplier order/payment and captured customer total.

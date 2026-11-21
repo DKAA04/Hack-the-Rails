@@ -8,8 +8,9 @@
 - Actual deployed source: https://wayward-nine.vercel.app/api/health/release
 - Service evidence: [SERVICE_EVIDENCE.md](SERVICE_EVIDENCE.md)
 - Deployment boundaries: [DEPLOYMENT.md](DEPLOYMENT.md)
+- Detailed demo procedure and browser-evidence distinction: [apps/web/DEMO.md](../apps/web/DEMO.md)
 
-The verified running release at preparation time is `cfaf8b38fb45596dbb417340591d7f59cff26289`. The release endpoint is authoritative for subsequent deployments. Documentation changes alone do not establish new runtime verification.
+The initial hosted checkpoint was `cfaf8b38fb45596dbb417340591d7f59cff26289`. Final integration includes Claude's `0e9c542` frontend revision and passes typecheck, 49 tests and production build. The release endpoint is authoritative for the final deployed source SHA. Source/build verification alone does not establish a fresh hosted-browser transaction.
 
 ## Submission description
 
@@ -35,7 +36,7 @@ Supplier timing can exceed this narration budget. When a service is unavailable,
 | Independent transaction reads | Confirmed/captured/fulfilled; one supplier order, one successful supplier payment and actual electronic-ticket reference; no purchase repeated |
 | Hosted delivery and access    | Genuine signed mapped webhook and duplicate replay return 200; missing/foreign guest sessions return 401/404                                   |
 | PostgreSQL                    | Commit/rollback, RLS and duplicate checks pass; both TLS legs encrypted after enforcement; client certificate validation enabled               |
-| Release checks                | Typecheck, 46 deterministic tests and production build passed for cfaf8b3                                                                      |
+| Release checks                | Final integration including frontend 0e9c542 passes typecheck, 49 deterministic tests and production build                                     |
 | Fresh hosted-browser return   | Owner is testing; record exact-order evidence after its ID/result is supplied                                                                  |
 
 Start the hosted test at the hosted URL and preserve that browser's session cookie. Old local Checkouts embed localhost return URLs and cannot prove a hosted return. Private cookies, credentials and traveller documents are not submission artifacts.
