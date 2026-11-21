@@ -1,5 +1,4 @@
 "use client";
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Icon } from "../../components/icons";
@@ -7,7 +6,12 @@ import { Badge, Button, ButtonLink, Notice, Skeleton, cx } from "../../component
 import { api } from "../../lib/api-client";
 import { formatDateTime, formatDuration, plural } from "../../lib/format";
 import { isAbort, toErrorView, type ErrorView } from "../common/mappers/errors";
-import { lastSearchFor, rerunLastSearch } from "../search/rerun";
+import type { SearchFormState } from "../search/mappers/intent";
+import { todayIso } from "../search/mappers/intent";
+import { lastSearchFor, rerunLastSearch, searchWith, shiftIsoDate } from "../search/rerun";
+import { SearchForm } from "../search/search-form";
+import { useCapabilities } from "../search/use-capabilities";
+import { DepartureBoard } from "./departure-board";
 import { useTrip } from "../trip/store";
 import { EMPTY_FILTERS, activeFilterCount, applyFilters, sortJourneys, type Filters, type SortKey } from "./filters";
 import { FiltersPanel } from "./filters-panel";
@@ -16,6 +20,8 @@ import { toResultsView, type ResultsView as Results } from "./mappers/journey";
 import { computePicks, dominantCurrency, type PickKey } from "./picks";
 
 const STALE_AFTER_MS = 15 * 60_000;
+const dayLabel = (iso: string) =>
+  new Intl.DateTimeFormat("en-GB", { weekday: "short", day: "numeric", month: "short", timeZone: "UTC" }).format(new Date(`${iso}T00:00:00Z`));
 const SORT_EXPLAIN: Record<SortKey, string> = {
   recommended: "Recommended: bookable first, then safer connections (tight and self-transfer changes drop down), then price and duration.",
   departure: "In departure order, like a departure board.",
@@ -36,6 +42,11 @@ export function ResultsView({ searchId }: { searchId: string }) {
   const [rerunError, setRerunError] = useState<ErrorView | null>(null);
   const [route, setRoute] = useState<string | null>(null);
   const [canRerun, setCanRerun] = useState(false);
+  const [last, setLast] = useState<SearchFormState | null>(null);
+  const [editing, setEditing] = useState(false);
+  const [stepping, setStepping] = useState<-1 | 1 | null>(null);
+  const { state: capabilities } = useCapabilities();
+  const editRef = useRef<HTMLDivElement>(null);
 
   const fetchResults = useCallback(
     (signal?: AbortSignal) => {
@@ -53,11 +64,32 @@ export function ResultsView({ searchId }: { searchId: string }) {
   useEffect(() => {
     const ac = new AbortController();
     fetchResults(ac.signal);
-    const last = lastSearchFor(searchId);
-    setCanRerun(!!last);
-    if (last?.origin && last.destination) setRoute(`${last.origin.name} to ${last.destination.name}`);
+    const found = lastSearchFor(searchId);
+    setLast(found);
+    setCanRerun(!!found);
+    setEditing(false);
+    if (found?.origin && found.destination) setRoute(`${found.origin.name} to ${found.destination.name}`);
     return () => ac.abort();
-  }, [fetchResults]);
+  }, [fetchResults, searchId]);
+
+  async function stepDay(delta: -1 | 1) {
+    if (!last) return;
+    setStepping(delta);
+    setRerunError(null);
+    try {
+      const next: SearchFormState = {
+        ...last,
+        departureDate: shiftIsoDate(last.departureDate, delta),
+        returnDate: last.tripType === "return" && last.returnDate ? shiftIsoDate(last.returnDate, delta) : last.returnDate,
+      };
+      const id = await searchWith(next);
+      if (id) router.push(`/results/${encodeURIComponent(id)}`);
+    } catch (e) {
+      setRerunError(toErrorView(e));
+    } finally {
+      setStepping(null);
+    }
+  }
 
   async function rerun() {
     setRerunning(true);
@@ -81,18 +113,71 @@ export function ResultsView({ searchId }: { searchId: string }) {
   return (
     <div className="pt-8 md:pt-10">
       <div className="flex flex-wrap items-end justify-between gap-4">
-        <div>
-          <Link href="/" className="inline-flex min-h-11 items-center gap-1 text-body-sm text-text-muted underline-offset-4 hover:underline">
-            <Icon name="arrow-right" size={14} className="rotate-180" />
-            Edit search
-          </Link>
-          <h1 className="mt-2 font-display text-title-lg sm:text-headline">{title}</h1>
+        <div className="min-w-0">
+          <h1 className="font-display text-title-lg sm:text-headline">{title}</h1>
+          {last ? (
+            <p className="mt-1 text-body-sm text-text-muted">
+              {new Intl.DateTimeFormat("en-GB", { weekday: "long", day: "numeric", month: "long", timeZone: "UTC" }).format(new Date(`${last.departureDate}T00:00:00Z`))}
+              {" · "}
+              {last.passengers.length === 1 ? "1 traveller" : `${last.passengers.length} travellers`}
+            </p>
+          ) : null}
         </div>
-        {load.status === "ready" && canRerun ? (
-          <Button variant="ghost" size="sm" icon="refresh" onClick={rerun} loading={rerunning} disabled={rerunning}>
-            Search again
+        <div className="flex flex-wrap items-center gap-2">
+          {last ? (
+            <div role="group" aria-label="Change travel date" className="flex items-center gap-1">
+              <Button
+                variant="ghost"
+                size="sm"
+                icon="arrow-right"
+                className="[&>svg]:rotate-180"
+                onClick={() => stepDay(-1)}
+                loading={stepping === -1}
+                disabled={stepping !== null || shiftIsoDate(last.departureDate, -1) < todayIso(last.origin?.timeZone)}
+                aria-label={`Earlier: search ${dayLabel(shiftIsoDate(last.departureDate, -1))}`}
+              >
+                {dayLabel(shiftIsoDate(last.departureDate, -1))}
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                iconAfter="arrow-right"
+                onClick={() => stepDay(1)}
+                loading={stepping === 1}
+                disabled={stepping !== null}
+                aria-label={`Later: search ${dayLabel(shiftIsoDate(last.departureDate, 1))}`}
+              >
+                {dayLabel(shiftIsoDate(last.departureDate, 1))}
+              </Button>
+            </div>
+          ) : null}
+          <Button
+            variant="secondary"
+            size="sm"
+            icon="search"
+            aria-expanded={editing}
+            aria-controls="edit-search"
+            onClick={() => {
+              setEditing((v) => !v);
+              requestAnimationFrame(() => editRef.current?.querySelector<HTMLElement>("input,button")?.focus());
+            }}
+          >
+            {editing ? "Close search" : "Edit search"}
           </Button>
-        ) : null}
+          {load.status === "ready" && canRerun ? (
+            <Button variant="quiet" size="sm" icon="refresh" onClick={rerun} loading={rerunning} disabled={rerunning}>
+              Refresh
+            </Button>
+          ) : null}
+        </div>
+      </div>
+      {last ? (
+        <p className="mt-2 text-caption text-text-muted">
+          Earlier and later step a whole day. Choosing a time of day isn&apos;t supported by our sources yet: timetable searches start at 08:00.
+        </p>
+      ) : null}
+      <div id="edit-search" ref={editRef} hidden={!editing} className="mt-4">
+        {editing ? <SearchForm capabilities={capabilities} initial={last} compact /> : null}
       </div>
       {rerunError ? (
         <Notice tone="danger" role="alert" title={rerunError.title} className="mt-4">
@@ -334,6 +419,8 @@ function Loaded({ data, onRerun, rerunning }: { data: Results; onRerun: (() => v
 
   const currency = useMemo(() => dominantCurrency(data.journeys), [data.journeys]);
   const visible = useMemo(() => sortJourneys(applyFilters(data.journeys, filters), sort), [data.journeys, filters, sort]);
+  const priced = visible.filter((j) => j.source === "offer");
+  const timetable = visible.filter((j) => j.source === "timetable");
   const picks = useMemo(() => computePicks(data.journeys), [data.journeys]);
   const pickIds = (id: string) =>
     (Object.values(picks).filter((p) => p.journey?.id === id).map((p) => p.key) as PickKey[]);
@@ -446,13 +533,25 @@ function Loaded({ data, onRerun, rerunning }: { data: Results; onRerun: (() => v
             {sort === "price" && data.journeys.some((j) => !j.price.total) ? " Unknown prices sort last. They're not free." : ""}
           </p>
           {visible.length ? (
-            <ul className="mt-4 space-y-4">
-              {visible.map((j) => (
-                <li key={j.id}>
-                  <JourneyCard journey={j} picks={pickIds(j.id)} />
-                </li>
-              ))}
-            </ul>
+            <div className="mt-4 space-y-6">
+              {priced.length ? (
+                <ul className="space-y-4" aria-label="Priced offers">
+                  {priced.map((j) => (
+                    <li key={j.id}>
+                      <JourneyCard journey={j} picks={pickIds(j.id)} />
+                    </li>
+                  ))}
+                </ul>
+              ) : null}
+              {timetable.length ? (
+                <DepartureBoard
+                  journeys={timetable}
+                  picksFor={pickIds}
+                  title={priced.length ? "Also running: timetables only" : "Departures"}
+                  note="From public timetables. Real departures, no prices or seats yet."
+                />
+              ) : null}
+            </div>
           ) : (
             <div className="mt-4 rounded-lg border border-dashed border-line-strong bg-surface p-6 text-center">
               <p className="font-semibold">No journeys match these filters</p>

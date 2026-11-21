@@ -41,3 +41,24 @@ export async function rerunLastSearch(): Promise<string | null> {
   rememberSearchId(receipt.searchId);
   return receipt.searchId;
 }
+
+/** Adds whole days to an ISO date without time-zone drift. */
+export function shiftIsoDate(iso: string, days: number) {
+  const [y, m, d] = iso.split("-").map(Number);
+  const t = new Date(Date.UTC(y!, m! - 1, d! + days));
+  return t.toISOString().slice(0, 10);
+}
+
+/** Runs a search for a given form, remembering it for this session. */
+export async function searchWith(form: SearchFormState): Promise<string | null> {
+  const r = toSearchIntent(form);
+  if (!r.ok) return null;
+  try {
+    sessionStorage.setItem(LAST_SEARCH_KEY, JSON.stringify(form));
+  } catch {
+    /* storage blocked */
+  }
+  const receipt = await api.search(r.intent);
+  rememberSearchId(receipt.searchId);
+  return receipt.searchId;
+}

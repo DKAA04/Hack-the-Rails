@@ -45,9 +45,18 @@ const TRIP_TYPES: { id: TripType; label: string }[] = [
   { id: "flexible", label: "Flexible dates" },
 ];
 
-export function SearchForm({ capabilities }: { capabilities: CapabilitiesState }) {
+export function SearchForm({
+  capabilities,
+  initial,
+  compact = false,
+}: {
+  capabilities: CapabilitiesState;
+  /** When given (even null), the form starts from it instead of the session's last search. */
+  initial?: SearchFormState | null;
+  compact?: boolean;
+}) {
   const router = useRouter();
-  const [s, setS] = useState<SearchFormState>(initialSearchState);
+  const [s, setS] = useState<SearchFormState>(() => (initial ? { ...initialSearchState(), ...initial } : initialSearchState()));
   const [errors, setErrors] = useState<FieldErrors>({});
   const [submitting, setSubmitting] = useState(false);
   const [failure, setFailure] = useState<ErrorView | null>(null);
@@ -59,6 +68,7 @@ export function SearchForm({ capabilities }: { capabilities: CapabilitiesState }
   useEffect(() => {
     if (restored.current) return;
     restored.current = true;
+    if (initial !== undefined) return;
     try {
       const raw = sessionStorage.getItem(STORAGE_KEY);
       if (raw) setS({ ...initialSearchState(), ...(JSON.parse(raw) as SearchFormState) });
@@ -121,7 +131,7 @@ export function SearchForm({ capabilities }: { capabilities: CapabilitiesState }
     : [];
 
   return (
-    <form onSubmit={submit} noValidate aria-labelledby="search-title" className="rounded-lg bg-surface p-4 shadow-lift sm:p-6 lg:p-8">
+    <form onSubmit={submit} noValidate aria-labelledby="search-title" className={cx("rounded-lg bg-surface p-4 sm:p-6", compact ? "border border-line" : "shadow-lift lg:p-8")}>
       <h2 id="search-title" className="sr-only">
         Search journeys
       </h2>
