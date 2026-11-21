@@ -29,3 +29,15 @@ Errors are ApiError: {version:1,error:{code,message,retryable,requestId}}. HTTP 
 POST order/checkout contracts require idempotency keys; durable idempotency, authenticated order access, rate limiting, raw Stripe signature verification and replay protection are prerequisites to enabling mutations. No payment success may imply supplier booking or ticket fulfillment. Customer sessions and production authorization are future work; current read/write order operations cannot return success.
 
 Credential presence is inspected locally and returned only as a boolean. Provider connectivity remains not_checked until a real permitted probe succeeds. Database configured is not database reachable. Environment WAYWARD_ENV defaults to development, live must be explicit; invalid values are visible in health and must block future operations. NODE_ENV controls framework optimizations only. No secrets or environment values are sent to clients.
+
+## Additive place lookup (v1)
+
+`GET /api/places?query=Berlin&limit=8&modes=flight,rail`
+
+- query: trimmed string, 2?120 characters, required.
+- limit: integer 1?20, default 8.
+- modes: optional comma-separated canonical Mode values, at least one if supplied.
+  Response `PlaceLookupResponse`: `{version:1, query:string, places:Place[], sources:Array<{id:string,status:"ok"|"unconfigured"|"unavailable"|"unsupported",message:string|null,attribution:string,url:string}>, warnings:string[], fetchedAt:Utc}`.
+  Exported schemas/types: PlaceLookupRequestSchema/PlaceLookupRequest, PlaceLookupSourceSchema/PlaceLookupSource, PlaceLookupResponseSchema/PlaceLookupResponse. Existing Place and SearchIntent are unchanged. Pass selected Place objects intact, including opaque providerIds and timeZone. A GeoNames city is not a supplier airport/station ID.
+  Source failures are explicit in sources/warnings. All sources unavailable => typed 503 PROVIDER_UNAVAILABLE. Invalid query => 400 INVALID_REQUEST. Empty matches => 200 with empty places. Debounce autocomplete and discard stale responses in frontend. Attribution must remain visible in the consuming UI. Open-Meteo free endpoint is development-only (non-commercial); live use requires a commercial licence/adapter configuration. VBB is regional timetable metadata, not bookable inventory; Duffel requires its own credential. Airport/city records without a known IANA zone are omitted, never assigned a guessed zone. VBB uses its published Europe/Berlin regional zone. No port inventory is invented.
+  Sources: https://open-meteo.com/en/docs/geocoding-api ; https://v6.vbb.transport.rest/api.html ; https://duffel.com/docs/api/v2/places/get-place-suggestions .
