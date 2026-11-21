@@ -1,4 +1,4 @@
-import type { Capabilities, Mode } from "@wayward/contracts";
+import type { Capabilities, DependencyHealth, Mode } from "@wayward/contracts";
 
 export type CapabilityState =
   | "available"
@@ -78,4 +78,20 @@ export function toCapabilitiesView(c: Capabilities): CapabilitiesView {
     providers,
     modes,
   };
+}
+
+export interface StorageView {
+  label: string;
+  tone: "ok" | "warn" | "danger" | "neutral";
+  detail: string;
+}
+/** Order storage: configured is not reachable; only a verified probe counts. */
+export function toStorageView(d: DependencyHealth): StorageView {
+  if (!d.database.configured)
+    return { label: "Not configured", tone: "warn", detail: "Orders can't be saved, so booking is off." };
+  if (d.database.connectivity === "failed")
+    return { label: "Unreachable", tone: "danger", detail: "The database didn't answer, so booking is off." };
+  if (d.database.connectivity === "verified")
+    return { label: "Connected", tone: "ok", detail: "Searches and orders are saved securely." };
+  return { label: "Not checked", tone: "neutral", detail: "Configured, connection not verified yet." };
 }

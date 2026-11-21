@@ -326,7 +326,8 @@ test("traveller details never reach browser storage, URLs or logs", () => {
 });
 
 test("test offers are bookable only as labelled test inventory; non-offers never", () => {
-  const live = offer("live1", { amount: 1000, dep: "2026-11-22T06:00:00Z", arr: "2026-11-22T07:00:00Z" });
+  const br = { holdSupported: true, priceGuaranteeExpiresAt: null, paymentRequiredBy: null, identityDocumentsRequired: false, supportedIdentityDocuments: [], passengerMappings: [] };
+  const live = { ...offer("live1", { amount: 1000, dep: "2026-11-22T06:00:00Z", arr: "2026-11-22T07:00:00Z" }), bookingRequirements: br };
   const test = { ...live, id: "t1", environment: "test" as const, price: { ...(live.price as Extract<Offer["price"], { kind: "live_offer" }>), kind: "test_offer" as const } };
   const tj = toOfferJourney(test, "s");
   assert.equal(tj.bookable, true);
@@ -336,6 +337,11 @@ test("test offers are bookable only as labelled test inventory; non-offers never
   assert.equal(toOfferJourney(indicative, "s").bookable, false);
   const mismatched = { ...test, environment: "live" as const };
   assert.equal(toOfferJourney(mismatched, "s").bookable, false);
+  const instantOnly = toOfferJourney({ ...test, bookingRequirements: { ...br, holdSupported: false } }, "s");
+  assert.equal(instantOnly.bookable, false);
+  assert.match(instantOnly.notBookableReason!, /Instant payment only/);
+  assert.equal(toOfferJourney({ ...test, bookingRequirements: { ...br, holdSupported: null } }, "s").bookable, false);
+  assert.equal(toOfferJourney({ ...test, bookingRequirements: undefined }, "s").bookable, false);
 });
 
 test("checkout readiness comes from workflow.checkoutReady, not a global flag", async () => {
