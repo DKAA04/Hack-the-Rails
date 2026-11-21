@@ -72,7 +72,7 @@ export function TripWorkspace() {
         ]
       : []),
   ];
-  const bookable = items.filter((j) => j.bookable);
+  const bookable = items.filter((j) => j.bookable && !trip.ordered[j.id]);
   const conflictsFor = (id: string) => conflicts.filter((c) => c.between[0] === id && c.between.length === 2);
 
   function move(j: JourneyView, delta: -1 | 1) {
@@ -101,6 +101,7 @@ export function TripWorkspace() {
             <li key={j.id}>
               <TripItem
                 journey={j}
+                orderId={trip.ordered[j.id] ?? null}
                 index={i}
                 count={items.length}
                 onMove={(d) => move(j, d)}
@@ -208,7 +209,9 @@ export function TripWorkspace() {
               {dangers.length
                 ? "Fix the impossible connection first."
                 : !bookable.length
-                  ? "Nothing in this trip is bookable yet: timetable journeys have no seller or price."
+                  ? items.some((j) => trip.ordered[j.id])
+                    ? "Everything bookable here already has an order. Check its status from the journey."
+                    : "Nothing in this trip is bookable yet: timetable journeys have no seller or price."
                   : bookable.length < items.length
                     ? `${bookable.length} of ${items.length} journeys can be booked. The rest stay in your plan.`
                     : "A timetable is not a reservation. A payment is not a ticket."}
@@ -258,12 +261,14 @@ function ClearTrip() {
 
 function TripItem({
   journey: j,
+  orderId,
   index,
   count,
   onMove,
   onRemove,
 }: {
   journey: JourneyView;
+  orderId: string | null;
   index: number;
   count: number;
   onMove: (d: -1 | 1) => void;
@@ -292,6 +297,12 @@ function TripItem({
             <ModeStrip journey={j} />
             <Badge tone={j.price.kindTone}>{j.price.kind === "unknown" ? "Price unknown" : `${j.price.display} · ${j.price.kindLabel}`}</Badge>
             <span className="text-caption text-text-muted">{j.seller ? `Sold by ${j.seller.name}` : `${j.providerLabel}, timetable only`}</span>
+            {orderId ? (
+              <a href={`/orders/${encodeURIComponent(orderId)}`} className="inline-flex min-h-6 items-center gap-1 text-caption font-semibold underline">
+                <Icon name="ticket" size={14} />
+                Order placed · view status
+              </a>
+            ) : null}
             {j.overnight ? (
               <Badge tone="info" icon="moon">
                 Overnight
