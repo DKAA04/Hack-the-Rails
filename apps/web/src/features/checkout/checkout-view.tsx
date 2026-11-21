@@ -3,6 +3,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { Icon } from "../../components/icons";
 import { Badge, Button, ButtonLink, Notice, PageHeader, cx } from "../../components/ui";
 import { api } from "../../lib/api-client";
+import { readDateField } from "../../lib/dom-date";
 import { formatDateTime, plural } from "../../lib/format";
 import { toErrorView, toPendingEndpointErrorView, type ErrorView } from "../common/mappers/errors";
 import type { JourneyView } from "../comparison/mappers/journey";
@@ -135,7 +136,19 @@ export function CheckoutView() {
   async function submit(e: React.FormEvent) {
     e.preventDefault();
     if (!travellers) return;
-    const errs = validateTravellers(travellers, contact, travelDate, policy);
+    // Adopt dates the fields hold but React never heard about (autofill etc.).
+    const synced = travellers.map((t, i) => ({
+      ...t,
+      bornOn: t.bornOn || readDateField(`t${i}-dob`).value,
+      document: { ...t.document, expiresOn: t.document.expiresOn || readDateField(`t${i}-docexp`).value },
+    }));
+    if (synced.some((t, i) => t.bornOn !== travellers[i]!.bornOn || t.document.expiresOn !== travellers[i]!.document.expiresOn))
+      setTravellers(synced);
+    const errs = validateTravellers(synced, contact, travelDate, policy);
+    synced.forEach((t, i) => {
+      if (errs[`t${i}-dob`] && !t.bornOn && readDateField(`t${i}-dob`).incomplete)
+        errs[`t${i}-dob`] = `Traveller ${i + 1}: that date of birth isn't complete. Check the day, month and year.`;
+    });
     setErrors(errs);
     if (Object.keys(errs).length) {
       setFailedSubmits((n) => n + 1);

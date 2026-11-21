@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { Icon } from "../../components/icons";
 import { Button, Notice, cx } from "../../components/ui";
 import { api } from "../../lib/api-client";
+import { readDateField } from "../../lib/dom-date";
 import { toErrorView, type ErrorView } from "../common/mappers/errors";
 import type { PlaceSourceView } from "./mappers/places";
 import {
@@ -106,9 +107,23 @@ export function SearchForm({
   async function submit(e: React.FormEvent) {
     e.preventDefault();
     setFailure(null);
-    const result = toSearchIntent(s);
+    // Adopt dates the field holds but React never heard about (autofill etc.).
+    const dep = readDateField("departureDate");
+    const ret = readDateField("returnDate");
+    const current: SearchFormState = {
+      ...s,
+      departureDate: s.departureDate || dep.value,
+      returnDate: s.returnDate || ret.value,
+    };
+    if (current.departureDate !== s.departureDate || current.returnDate !== s.returnDate) setS(current);
+    const result = toSearchIntent(current);
     if (!result.ok) {
-      setErrors(result.errors);
+      const errs = { ...result.errors };
+      if (errs.departureDate && !current.departureDate && dep.incomplete)
+        errs.departureDate = "That date isn't complete. Check the day, month and year.";
+      if (errs.returnDate && !current.returnDate && ret.incomplete)
+        errs.returnDate = "That return date isn't complete. Check the day, month and year.";
+      setErrors(errs);
       if (Object.keys(result.errors).some((k) => k.startsWith("passenger"))) setShowTravellers(true);
       setFailedSubmits((n) => n + 1);
       return;
@@ -116,7 +131,7 @@ export function SearchForm({
     setErrors({});
     setSubmitting(true);
     try {
-      sessionStorage.setItem(STORAGE_KEY, JSON.stringify(s));
+      sessionStorage.setItem(STORAGE_KEY, JSON.stringify(current));
     } catch {
       /* storage blocked */
     }
