@@ -40,11 +40,26 @@ Supplier timing can exceed this narration budget. When a service is unavailable,
 
 Start the hosted test at the hosted URL and preserve that browser's session cookie. Old local Checkouts embed localhost return URLs and cannot prove a hosted return. Private cookies, credentials and traveller documents are not submission artifacts.
 
-## Actual Track 2 requirements
+Operator exact-order verification: `pnpm exec tsx scripts/verify-order-readonly.ts ORDER_ID`. This uses SQL SELECTs and documented Stripe/supplier retrievals only. It reports accepted/captured total matching, test environment, return origin, actual supplier documents and matching order/payment counts. It performs no schema migration, reconciliation, settlement, capture, refund or purchase. Browser cookie continuity must still come from the observed browser result, not a database read.
 
-**No official brief found in the inspected repository.** Tracked documentation and local Markdown/PDF notes contain no official Track 2 brief, submission form, deadline, video length, judging rubric or mandatory deliverables. No compliance claim is made for an unseen brief. An official brief/form URL or repository path is needed to verify these requirements.
+## Actual Platform 2 brief and fit
 
-These links, description and walkthrough are prepared materials, not an invented Track 2 checklist. The owner must confirm the official submission destination, team/member details, required attachments, permitted test/demo format and deadline from organizer instructions.
+Source: organizer description supplied by the owner on 2026-11-21, titled **Platform 2 · Trip Planner: built with Stripe, Auctioned!** No separate official brief was present in the inspected repository. Its product instruction is to challenge Skyscanner and Omio by searching, comparing, combining and paying for multi-leg European journeys in one flow. Payments run on Stripe. The description also presents an optional acquisition opportunity at the pitch; any sale or terms are an owner decision, not an action performed by this project.
+
+| Brief requirement          | Current demonstration and honest limit                                                                                                                          |
+| -------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Search and compare         | Actual resolved places, supplier test flight offers, repricing, regional timetables and comparison UI                                                           |
+| Combine multi-leg journeys | Trip workspace and journey/transfer contracts; protected cross-supplier composition and joint purchasing remain unfinished                                      |
+| European multimodal travel | Full mode scope and actual regional European timetable coverage; commercial rail/coach/ferry purchasing remains pending                                         |
+| Pay through Stripe         | Actual test Checkout, signed events, customer authorization/capture, supplier test settlement and actual ticket references for a supported single-supplier hold |
+
+The submission form is private. The owner reports a deadline about 65 minutes after supplying the brief; confirm the precise deadline in that form. No required video length, attachment list or judging rubric was supplied, so this pack does not invent them. The three-minute walkthrough is a suggested presentation, not an organizer-mandated format.
+
+## Aikido-sponsored cybersecurity track
+
+The owner also intends to enter this track. Its detailed brief/rubric and any required Aikido scan or account setup were not supplied. [Security evidence](SECURITY_EVIDENCE.md) records implemented controls, actual checks and remaining gaps. No Aikido scan, penetration test or compliance certification is claimed.
+
+Owner-only submission steps: open the private form, verify its fields/deadline, fill team/member details, attach any required assets, identify the intended tracks, and submit. Confirm any pitch/acquisition decisions separately.
 
 ## Current limitations
 
