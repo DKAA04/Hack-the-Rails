@@ -13,12 +13,12 @@ export const adapter: ProviderAdapter = {
       operations: {
         search: configured ? "available" : "unconfigured",
         reprice: configured ? "available" : "unconfigured",
-        reserve: "not_implemented",
+        reserve: configured ? "available" : "unconfigured",
         book: "not_implemented",
-        fulfillment: "not_implemented",
+        fulfillment: configured ? "available" : "unconfigured",
         aftersales: "not_implemented",
       },
-      note: "Search/reprice implemented against documented Duffel v2 API. Connectivity is verified only after a validated response; booking is disabled.",
+      note: "Test-only order workflow supports offer-specific unpaid holds, sandbox balance settlement and actual supplier document retrieval. Instant/live purchases and aftersales are disabled. Credential presence is distinct from verified connectivity.",
     };
   },
   search: async (intent) => (await searchFlights(intent)).offers,

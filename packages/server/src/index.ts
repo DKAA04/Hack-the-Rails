@@ -9,3 +9,5 @@ export * from "./payments/stripe";
 export * from "./places";
 export { customerEndpoint } from "./auth";
 export * from "./dependencies";
+export { updateTravellers, reserveOrder } from "./booking/workflow";
+export { reconcileOrder } from "./payments/workflow";

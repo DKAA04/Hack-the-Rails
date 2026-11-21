@@ -40,6 +40,7 @@ export const DuffelOrderSchema = z.object({
     .default([]),
   passengers: z.array(z.object({ id: z.string() })).optional(),
   conditions: z.unknown().optional(),
+  slices: DuffelOfferSchema.shape.slices.optional(),
 });
 export type DuffelOrder = z.infer<typeof DuffelOrderSchema>;
 export const DuffelPaymentSchema = z.object({
@@ -312,9 +313,16 @@ export async function reserveFlight(
   }
 }
 export async function retrieveSupplierOrder(id: string): Promise<DuffelOrder> {
-  return z
+  const order = z
     .object({ data: DuffelOrderSchema })
     .parse(await duffelJson(`/air/orders/${encodeURIComponent(id)}`)).data;
+  if (order.id !== id)
+    throw new ServiceError(
+      "PROVIDER_UNAVAILABLE",
+      "Supplier returned an unexpected booking identifier.",
+      503,
+    );
+  return order;
 }
 export async function findSupplierOrders(
   offerId: string,
