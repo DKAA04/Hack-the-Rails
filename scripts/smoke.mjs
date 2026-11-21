@@ -13,8 +13,7 @@ for (const path of ["health", "capabilities"]) {
       data.providers.every(
         (p) =>
           ["not_checked", "verified", "failed"].includes(p.connectivity) &&
-          p.operations.book !== "available" &&
-          p.operations.fulfillment !== "available",
+          p.operations.book !== "available",
       ),
     );
   }

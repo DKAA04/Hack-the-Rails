@@ -3,7 +3,7 @@ import type { StoredOrder } from "../../orders";
 import { ServiceError } from "../../errors";
 // Pure builder; no Stripe call or monetary movement occurs here.
 export function checkoutParameters(
-  stored: StoredOrder,
+  stored: Pick<StoredOrder, "order" | "email">,
 ): Stripe.Checkout.SessionCreateParams {
   const total = stored.order.total;
   if (!("total" in total) || total.completeness !== "complete")

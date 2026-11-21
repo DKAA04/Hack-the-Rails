@@ -6,6 +6,7 @@ export const DependencyHealthSchema = z.object({
     connectivity: z.enum(["not_checked", "verified", "failed"]),
   }),
   searchStorage: z.enum(["postgresql", "development_file", "unconfigured"]),
+  checkoutPolicy: z.literal("per_order_test_only").optional(),
   stripe: z.object({
     credentialsPresent: z.boolean(),
     webhookSecretPresent: z.boolean(),

@@ -5,6 +5,7 @@ export async function dependencies() {
   const config = configuration();
   return DependencyHealthSchema.parse({
     version: 1,
+    checkoutPolicy: "per_order_test_only",
     database: {
       configured: config.databaseConfigured,
       connectivity: await databaseReachability(),

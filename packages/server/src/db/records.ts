@@ -4,6 +4,8 @@ import { resolve, join } from "node:path";
 import { randomUUID } from "node:crypto";
 import { configuration } from "../config";
 import { ServiceError } from "../errors";
+import { databaseConnectionOptions } from "./connection";
+import { recordsMigration } from "./migrations/001-records";
 export type RecordNamespace =
   | "search"
   | "quote"
@@ -20,7 +22,7 @@ export function postgresPool() {
       503,
     );
   pool ??= new Pool({
-    connectionString: process.env.DATABASE_URL,
+    ...databaseConnectionOptions(process.env.DATABASE_URL),
     max: 5,
     connectionTimeoutMillis: 5000,
     idleTimeoutMillis: 10000,
@@ -28,20 +30,38 @@ export function postgresPool() {
   return pool;
 }
 export async function ensureDatabase() {
-  initialized ??= postgresPool()
-    .query(
-      `CREATE SCHEMA IF NOT EXISTS wayward_private; CREATE TABLE IF NOT EXISTS wayward_private.records (namespace text NOT NULL, id text NOT NULL, payload jsonb NOT NULL, updated_at timestamptz NOT NULL DEFAULT now(), PRIMARY KEY(namespace,id)); ALTER TABLE wayward_private.records ENABLE ROW LEVEL SECURITY;`,
-    )
-    .then(() => undefined)
-    .catch(() => {
-      initialized = undefined;
+  initialized ??= (async () => {
+    const client = await postgresPool().connect();
+    try {
+      await client.query("BEGIN");
+      await client.query(
+        "SELECT pg_advisory_xact_lock(hashtextextended('wayward-private-migrations',0))",
+      );
+      await client.query(recordsMigration);
+      await client.query("COMMIT");
+    } catch {
+      try {
+        await client.query("ROLLBACK");
+      } catch {}
       throw new ServiceError(
         "PROVIDER_UNAVAILABLE",
-        "PostgreSQL is unavailable or schema initialization was denied.",
+        "PostgreSQL private-schema migration failed. Verify database access and project schema permissions.",
         503,
         true,
       );
-    });
+    } finally {
+      client.release();
+    }
+  })().catch((error) => {
+    initialized = undefined;
+    if (error instanceof ServiceError) throw error;
+    throw new ServiceError(
+      "PROVIDER_UNAVAILABLE",
+      "PostgreSQL connection failed. Verify DATABASE_URL and TLS settings.",
+      503,
+      true,
+    );
+  });
   await initialized;
 }
 export interface RecordTransaction {

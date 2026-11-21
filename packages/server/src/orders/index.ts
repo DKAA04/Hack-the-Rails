@@ -6,11 +6,15 @@ import {
   SearchIntentSchema,
   type CreateOrderRequest,
   type Order,
+  BookingPassengerSchema,
+  BookingContactSchema,
+  UtcSchema,
 } from "@wayward/contracts";
 import type { CustomerContext } from "../auth";
 import { hash } from "../auth";
 import { transaction, getRecord } from "../db/records";
 import { ServiceError } from "../errors";
+import { presentOrder } from "./presentation";
 import { validateOrderQuote } from "./validation";
 export const StoredOrderSchema = z.object({
   order: OrderSchema,
@@ -21,6 +25,37 @@ export const StoredOrderSchema = z.object({
   email: z.email(),
   stripeSessionId: z.string().optional(),
   stripePaymentIntentId: z.string().optional(),
+  stripeCheckoutUrl: z.url().optional(),
+  stripeSessionExpiresAt: UtcSchema.optional(),
+  travellers: z.array(BookingPassengerSchema).optional(),
+  contact: BookingContactSchema.optional(),
+  operation: z
+    .object({
+      phase: z
+        .enum([
+          "reserving",
+          "reserved",
+          "awaiting_payment",
+          "settling_supplier",
+          "fulfilling",
+          "complete",
+          "needs_acceptance",
+          "manual_review",
+          "failed",
+          "expired",
+        ])
+        .optional(),
+      reserveKeyHash: z.string().optional(),
+      reserveStartedAt: UtcSchema.optional(),
+      reserveAttemptedAt: UtcSchema.optional(),
+      settlementAttemptedAt: UtcSchema.optional(),
+      captureAttemptedAt: UtcSchema.optional(),
+      lastError: z.string().optional(),
+      supplierSnapshot: z.string().optional(),
+      supplierPaymentRequiredBy: UtcSchema.nullable().optional(),
+      supplierPriceGuaranteeExpiresAt: UtcSchema.nullable().optional(),
+    })
+    .default({}),
 });
 export type StoredOrder = z.infer<typeof StoredOrderSchema>;
 const QuoteRecord = z.object({
@@ -47,7 +82,7 @@ export async function createOrder(
           "Idempotency key was already used with different order details.",
           409,
         );
-      return stored.order;
+      return presentOrder(stored);
     }
     const row = await client.get("quote", request.quoteId, true);
     if (!row)
@@ -93,10 +128,12 @@ export async function createOrder(
       intent: stored.intent,
       quote: stored.quote,
       email: request.email,
+      travellers: request.travellers,
+      contact: request.contact,
     });
     await client.insert("order", id, record);
     await client.put("quote", request.quoteId, { ...stored, consumedBy: id });
-    return order;
+    return presentOrder(record);
   });
 }
 export async function authorizedOrder(
@@ -114,5 +151,5 @@ export async function getOrder(
   id: string,
   context: CustomerContext,
 ): Promise<Order> {
-  return (await authorizedOrder(id, context)).order;
+  return presentOrder(await authorizedOrder(id, context));
 }

@@ -1,5 +1,7 @@
 # Wayward API contract v1
 
+Current transaction endpoint behavior and additive passenger/workflow schemas are in [TRANSACTION_INTEGRATION.md](TRANSACTION_INTEGRATION.md). Actual configured-service verification is in [SERVICE_EVIDENCE.md](SERVICE_EVIDENCE.md). Earlier increment descriptions below record foundation behavior; the current per-order test workflow supersedes blanket checkout-disabled statements.
+
 Canonical source: packages/contracts/src. All consumers import @wayward/contracts. Version 1 uses camelCase JSON and UTC ISO timestamps ending in Z, plus IANA time zones on places. Money is a nonnegative safe integer in minor units and an uppercase ISO currency code. No floating-point currency calculations. Provider IDs are opaque strings; do not parse or replace them with display names.
 
 SearchIntent includes resolved typed places, passenger ages and discount references, dates, bag counts, modes, preferences and optional natural-language text. Natural language is input, not an implemented inference service. Place resolution must be integrated before frontend submission; raw labels must not masquerade as resolved supplier IDs.
