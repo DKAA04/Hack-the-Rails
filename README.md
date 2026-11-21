@@ -1,18 +1,46 @@
-# Wayward
+﻿# Wayward
 
-A European multimodal travel workspace: flights, rail, coaches, ferries and local connections. The backend branch now includes real place lookup and regional timetable search, a credential-gated Duffel flight search/reprice adapter, persisted results, and PostgreSQL draft-order/Stripe verification code. No inventory is fabricated. Customer checkout and supplier booking remain disabled.
+**Go your own way.** A European multimodal travel workspace for flights, trains, coaches, ferries and local connections.
 
-## Setup
+**[Hosted demo](https://wayward-nine.vercel.app)** · [Submission and walkthrough](docs/SUBMISSION.md) · [Deployed source SHA](https://wayward-nine.vercel.app/api/health/release)
 
-Node.js 22.14+ (Node 22.23.3 verified), pnpm 10.32.1.
+The current release connects actual supplier flight search, repricing, unpaid holds, Stripe **test** payments, supplier **test** settlement and returned electronic-ticket references. Regional public-transit journeys are real timetables, separate from purchasable inventory. No live travel sales are enabled.
+
+## Quickstart
+
+Use Node.js 22.14+ and pnpm 10.32.1. Hosting runs Node 22.
 
 ```sh
+git clone https://github.com/DKAA04/Hack-the-Rails.git Wayward
+cd Wayward
 npm install --global pnpm@10.32.1
 pnpm install --frozen-lockfile
 pnpm dev
 ```
 
-Open http://localhost:3000. No credentials or database required. Optional: copy .env.example to apps/web/.env.local. Keep values local. WAYWARD_ENV is development by default; set live only deliberately after operational safeguards exist. No integration is enabled merely by adding a key. APP_URL is reserved for trusted redirects; it is not used until checkout is implemented. Only NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY may reach the browser.
+Open http://localhost:3000. The app starts without credentials or a database and reports unavailable integrations explicitly. Results depend on real configured services; missing inventory is never fabricated.
+
+For integrations, copy [.env.example](.env.example) to `apps/web/.env.local` only if that local file does not already exist. Set `WAYWARD_ENV=development` and `APP_URL=http://localhost:3000`, matching the actual port. Keep secret values local.
+
+| Variable                             | Purpose                                                                           |
+| ------------------------------------ | --------------------------------------------------------------------------------- |
+| `DATABASE_URL`                       | PostgreSQL / Supabase session-pooler SQL connection; required for orders/payments |
+| `DUFFEL_ACCESS_TOKEN`                | Duffel test access for search, repricing and supported hold transactions          |
+| `STRIPE_SECRET_KEY`                  | Matching Stripe test account                                                      |
+| `STRIPE_WEBHOOK_SECRET`              | Signing secret for this exact local or hosted webhook destination                 |
+| `NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY` | Public Stripe test setting, if used by the client                                 |
+
+Supabase public project settings do not replace SQL credentials. The isolated database adapter applies additive migrations only in `wayward_private`, enables RLS and validates Supabase TLS certificates/hostnames. Configured database failures never fall back to file-backed customer orders. Search-only development file storage is explicitly identified when PostgreSQL is absent.
+
+For local signed delivery, use the same Stripe test account:
+
+```sh
+stripe listen --events checkout.session.completed,checkout.session.expired,payment_intent.amount_capturable_updated,payment_intent.succeeded,payment_intent.payment_failed,payment_intent.canceled --forward-to http://localhost:3000/api/webhooks/stripe
+```
+
+Save the listener secret privately in `apps/web/.env.local`, then restart. The deployed webhook has a different endpoint-specific secret. Full setup: [BACKEND_SETUP.md](docs/BACKEND_SETUP.md).
+
+## Commands
 
 ```sh
 pnpm typecheck
@@ -21,38 +49,38 @@ pnpm build
 pnpm start
 ```
 
-One Next.js App Router app, two source-exported TypeScript packages, one lockfile. Next transpiles both packages; no separate package build is needed. Tailwind v4 theme tokens live in globals.css. All TypeScript projects use strict checking.
+`pnpm start` serves the production build on port 3000. `pnpm test` is deterministic and performs no supplier purchases or payment requests. External transaction scripts have separate explicit execution guards; do not use them to recreate a confirmed or uncertain purchase.
 
-## Boundaries and status
+## Architecture
 
-- apps/web: responsive journey workspace, structured search inputs, all transport modes, comparison placeholders, trip cart and order/account empty state. The unconnected form never pretends to resolve supplier places or produce offers.
-- packages/contracts: canonical Zod schemas and inferred v1 types.
-- packages/server: thin route delegation, inspection, provider interfaces and explicit unfinished operations. PostgreSQL repository adapter is isolated in db; no fake memory orders.
-- Customer Stripe checkout, supplier settlement and ticket fulfillment are distinct services. No real charges, bookings, registrations or funding are performed.
+One Next.js App Router app, two shared TypeScript packages and one pnpm lockfile. Next transpiles the source-exported packages. TypeScript is strict; Tailwind provides reusable design tokens.
 
-Backend increments are documented in docs/BACKEND_SETUP.md and docs/API_CONTRACT.md. GET /api/places provides resolved places; /api/search persists real supplier/timetable outcomes; GET /api/health/dependencies checks PostgreSQL reachability. Frontend must render timetable journeys as unknown-priced and nonbookable.
+| Boundary                 | Responsibility                                                                                                         |
+| ------------------------ | ---------------------------------------------------------------------------------------------------------------------- |
+| `apps/web`               | React UI, resolved-place search, comparisons, trip workspace, checkout and guest orders; same-origin browser API calls |
+| `apps/web/src/app/api`   | Thin handlers delegating to server services                                                                            |
+| `packages/contracts`     | Canonical v1 Zod schemas/types; opaque supplier IDs, integer minor-unit money and explicit unknown values              |
+| `packages/server`        | Provider adapters, normalization, orchestration, repricing, booking, payments and fulfillment                          |
+| `packages/server/src/db` | PostgreSQL transactions, locks and private-schema persistence                                                          |
+| External services        | Duffel test supplier, Stripe test payments, Supabase PostgreSQL and regional timetable/place sources                   |
 
-The following bootstrap notes describe the initial foundation; consult those backend documents for current route behavior. Health checks process/configuration only. Capability inspection distinguishes key presence from verified connectivity. Duffel and All Aboard credentials are recognized but adapters are unimplemented. Distribusion and Omio partner access/authentication and all operation coverage remain unresolved. Public transit sources require region/licensing decisions. DB_CLIENT_ID/DB_API_KEY and SNCF_API_TOKEN are reserved research settings, not assumed supplier access. OPENAI_API_KEY is reserved for natural-language parsing, which is not implemented. Stripe has no active charging path. PostgreSQL is not connected. Actual customer identity and authorized order lookup are not implemented.
+Transaction path: actual offer → revalidate and accept total/conditions → durable order and traveller details → supported supplier hold → Stripe authorization → supplier settlement → actual fulfillment references → customer capture → confirmed order. Payment, settlement and fulfillment have separate states. Durable claims and reconciliation prevent automatic repetition of ambiguous supplier mutations. A real reference does not imply a downloadable PDF or known issuance timestamp.
 
-See docs/API_CONTRACT.md and docs/OWNERSHIP.md for safe integration requirements and two-laptop workflow. Official framework references: https://nextjs.org/docs/app/getting-started/installation and https://tailwindcss.com/docs/installation/framework-guides/nextjs.
+Guest orders require their originating HttpOnly cookie. HTTPS cookies are Secure, SameSite=Strict and scoped to `/api`. Missing sessions receive 401; another valid guest session receives 404. An order ID alone does not grant access. Clearing the cookie loses guest access; account recovery is unfinished.
 
-## Two laptops
+## Tested capabilities and limits
 
-Frontend laptop:
+- Verified real supplier place lookup, flight test offers, normalization, repricing, persisted searches, draft orders and traveller updates.
+- Verified a fresh local-browser Stripe test transaction, corroborated by one supplier order, one successful supplier payment, captured payment and an actual electronic-ticket reference. Hosted signed delivery and duplicate replay were verified separately. Fresh hosted-browser return evidence is tracked in [SUBMISSION.md](docs/SUBMISSION.md).
+- Verified PostgreSQL commit, rollback, RLS, duplicate protection and protected order access. Both TLS legs passed after owner SSL enforcement, with client certificate validation enabled.
+- Verified regional timetable journeys with unknown prices and no booking action. All transport modes remain in scope; commercial ground purchasing awaits partner access/implementation.
+- Unavailable: live travel purchases/charges, instant-only flight purchasing, multi-supplier protected purchases, infant association, automated aftersales, account recovery and natural-language parsing. Comfort ranking uses transfer-related heuristics, not a verified seat-quality measurement.
+- Coverage is regional, not Europe-wide commercial inventory. Open-Meteo's free geocoding adapter is development-only/non-commercial. Broader use needs appropriate supplier access and licensing.
 
-```sh
-git clone https://github.com/DKAA04/Hack-the-Rails.git Wayward
-cd Wayward
-git switch feat/frontend
-npm install --global pnpm@10.32.1
-pnpm install --frozen-lockfile
-pnpm dev
-```
+The deployed cfaf8b3 checkpoint passed strict type checking, 46 deterministic tests and a production build. [SERVICE_EVIDENCE.md](docs/SERVICE_EVIDENCE.md) and [DEPLOYMENT.md](docs/DEPLOYMENT.md) distinguish implementation, external evidence and gaps.
 
-Backend laptop uses the same commands with `git switch feat/backend`. Existing clones should commit their own work, then `git fetch origin` and switch to the relevant tracking branch. SSH clone works after configuring your own GitHub SSH key; the bootstrap machine used HTTPS because SSH authentication was unavailable.
+## Collaboration and API
 
-## Foundation verification
+Frontend owns `feat/frontend`; backend owns `feat/backend`; final integration uses `integration/final` and short PRs into `main`. Preserve local work and coordinate contracts, manifests and the lockfile. See [OWNERSHIP.md](docs/OWNERSHIP.md), [API_CONTRACT.md](docs/API_CONTRACT.md) and [TRANSACTION_INTEGRATION.md](docs/TRANSACTION_INTEGRATION.md).
 
-Verified on Node 22.23.3: pinned workspace install and frozen-lockfile reinstall; strict type checks for every package; three contract invariant tests; production build; production server startup without external credentials; home and health HTTP 200; capability inspection reports no enabled supplier operations; every valid business POST returns typed 501; invalid search returns 400; search/order retrieval returns 501; unsigned/unconfigured Stripe webhook fails closed. No external supplier or payment requests were sent.
-
-With the server running, `pnpm test:smoke` repeats the HTTP checks. It uses structurally valid opaque test identifiers solely to verify rejection, never creates inventory or customer orders. PostgreSQL, real supplier connectivity, authentication, natural-language parsing, payments and fulfillment remain unimplemented and are the next development work.
+The hosted app stays in development/test mode. `/api/health/release` identifies the deployed SHA; `/api/health/dependencies` probes PostgreSQL; `/api/capabilities` distinguishes key presence from verified provider access.
