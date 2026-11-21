@@ -104,7 +104,7 @@ function LiveOrder({ orderId, checkoutReturn }: { orderId: string; checkoutRetur
         <Notice tone="neutral" title="Payment cancelled" className="mb-6">
           You left the payment page without paying, so nothing was charged. The seller&apos;s hold stays until its deadline.
         </Notice>
-      ) : checkoutReturn === "returned" ? (
+      ) : checkoutReturn === "returned" && (load.status === "loading" || syncing) ? (
         <p className="mb-6 text-body-sm text-text-muted" role="status">
           Back from payment. We&apos;re checking the result with the payment provider and the seller.
         </p>

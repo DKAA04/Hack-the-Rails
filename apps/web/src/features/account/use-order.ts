@@ -71,7 +71,10 @@ export function useOrder(
     } catch (e) {
       if (!alive.current) return;
       // Stop the loop: an error is shown with a manual "check again".
-      setSyncError(toErrorView(e));
+      const err = toErrorView(e);
+      setSyncError(err);
+      // Nothing loaded yet (e.g. first reconcile on return): show it as the page error.
+      setLoad((l) => (l.status === "ready" ? l : { status: "error", error: err }));
       clearTimer();
     } finally {
       inFlight.current = false;
