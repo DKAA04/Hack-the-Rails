@@ -6,7 +6,7 @@ import { formatDuration, minutesBetween, plural } from "../../lib/format";
 import { ModeStrip } from "../comparison/journey-card";
 import { JourneyTimeline } from "../comparison/journey-timeline";
 import { MODE_LABEL, type JourneyView } from "../comparison/mappers/journey";
-import { findConflicts, nameOf, tripTotal, type Conflict } from "./conflicts";
+import { findConflicts, nameOf, stillBookable, tripTotal, type Conflict } from "./conflicts";
 import { useTrip } from "./store";
 
 export function TripWorkspace() {
@@ -72,7 +72,7 @@ export function TripWorkspace() {
         ]
       : []),
   ];
-  const bookable = items.filter((j) => j.bookable && !trip.ordered[j.id]);
+  const bookable = items.filter((j) => stillBookable(j) && !trip.ordered[j.id]);
   const conflictsFor = (id: string) => conflicts.filter((c) => c.between[0] === id && c.between.length === 2);
 
   function move(j: JourneyView, delta: -1 | 1) {

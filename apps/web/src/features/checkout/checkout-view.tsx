@@ -11,7 +11,7 @@ import { OrderStatus } from "../account/order-status";
 import { OrderWorkflowPanel } from "../account/order-workflow";
 import { useOrder } from "../account/use-order";
 import { lastSearchFor } from "../search/rerun";
-import { tripTotal } from "../trip/conflicts";
+import { stillBookable, tripTotal } from "../trip/conflicts";
 import { useTrip } from "../trip/store";
 import {
   DOCUMENT_LABEL,
@@ -51,7 +51,7 @@ export function CheckoutView() {
   // Journeys already ordered from this browser aren't offered for booking
   // again (but stay listed while this checkout shows the order it created).
   const bookable = useMemo(
-    () => trip.items.filter((j) => j.bookable && (inOrder || !trip.ordered[j.id])),
+    () => trip.items.filter((j) => (inOrder || (stillBookable(j) && !trip.ordered[j.id])) && j.bookable),
     [trip.items, trip.ordered, inOrder],
   );
   const planOnly = trip.items.length - bookable.length;
