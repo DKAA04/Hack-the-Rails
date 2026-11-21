@@ -21,7 +21,7 @@ import { PassengerEditor, passengerSummary } from "./passenger-editor";
 import { PlaceCombobox, SourceList } from "./place-combobox";
 import type { CapabilitiesState } from "./use-capabilities";
 
-import { LAST_SEARCH_KEY as STORAGE_KEY } from "./rerun";
+import { LAST_SEARCH_KEY as STORAGE_KEY, rememberSearchId } from "./rerun";
 
 const FIELD_LABEL: Record<string, string> = {
   origin: "From",
@@ -107,6 +107,7 @@ export function SearchForm({ capabilities }: { capabilities: CapabilitiesState }
     }
     try {
       const receipt = await api.search(result.intent);
+      rememberSearchId(receipt.searchId);
       router.push(`/results/${encodeURIComponent(receipt.searchId)}`);
     } catch (err) {
       setFailure(toErrorView(err));
@@ -280,6 +281,9 @@ export function SearchForm({ capabilities }: { capabilities: CapabilitiesState }
                 />
                 <Icon name={on ? "check" : m.id} size={16} />
                 {m.label}
+                {caps && !caps.modes[m.id].searchable ? (
+                  <span className={cx("text-caption font-normal", on ? "text-ink-muted" : "text-text-muted")}>· no source yet</span>
+                ) : null}
               </label>
             );
           })}
@@ -291,16 +295,14 @@ export function SearchForm({ capabilities }: { capabilities: CapabilitiesState }
         ) : (
           <p id="modes-hint" className="mt-2 text-caption text-text-muted">
             {caps && unsearchable.length
-              ? `No connected seller for ${unsearchable
-                  .map((m) => TOGGLE_MODES.find((t) => t.id === m)?.label.toLowerCase())
-                  .join(" or ")} yet, so those won't return results. Trains, ferries and local transit come from public timetables, with no prices.`
+              ? "Trains, ferries and local transit come from public timetables (Berlin and Brandenburg in detail), with no prices yet. Modes marked 'no source yet' won't return results."
               : "Every mode is ranked on the same terms. Nothing gets a head start."}
           </p>
         )}
       </fieldset>
 
       <details className="group mt-6">
-        <summary className="flex w-fit cursor-pointer list-none items-center gap-2 rounded-md text-label">
+        <summary className="flex min-h-11 w-fit cursor-pointer list-none items-center gap-2 rounded-md text-label">
           <Icon name="chevron-right" size={16} className="transition-transform group-open:rotate-90" />
           Preferences
         </summary>
@@ -404,7 +406,7 @@ export function SearchForm({ capabilities }: { capabilities: CapabilitiesState }
             }
           >
             {failure.message}
-            {failure.requestId ? (
+            {failure.requestId && failure.kind === "unknown" ? (
               <span className="mt-1 block text-caption">Support code {failure.requestId}</span>
             ) : null}
           </Notice>

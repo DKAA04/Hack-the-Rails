@@ -248,3 +248,18 @@ test("checkout validation explains age mismatches and sends only contract fields
   const req = toCreateOrderRequest("q", "k", t, { email: "ana@example.com", phone: "" }, "2026-11-22");
   assert.deepEqual(Object.keys(req.passengers[0]!).sort(), ["age", "discounts", "id"]);
 });
+
+test("same-route or overlapping journeys become options, not impossible legs", async () => {
+  const { isAlternative } = await import("../apps/web/src/features/trip/store");
+  const a = toOfferJourney(offer("a1", { amount: 100, dep: "2026-11-22T08:00:00Z", arr: "2026-11-22T09:00:00Z" }), "s");
+  const sameRouteLater = toOfferJourney(offer("a2", { amount: 100, dep: "2026-11-22T12:00:00Z", arr: "2026-11-22T13:00:00Z" }), "s");
+  const onward = { ...sameRouteLater, id: "a3", origin: a.destination, destination: { ...a.destination, id: "zz", name: "Elsewhere" } };
+  assert.equal(isAlternative(sameRouteLater, [a]), true);
+  assert.equal(isAlternative(onward, [a]), false);
+});
+
+test("recommended sort demotes tight self-transfers below safer journeys", () => {
+  const direct = toOfferJourney(offer("d", { dep: "2026-11-22T08:00:00Z", arr: "2026-11-22T09:00:00Z" }), "s");
+  const risky = { ...toOfferJourney(offer("r", { dep: "2026-11-22T08:00:00Z", arr: "2026-11-22T08:50:00Z" }), "s"), worstTransfer: "tight" as const };
+  assert.equal(sortJourneys([risky, direct], "recommended")[0]!.id, "d");
+});

@@ -5,7 +5,7 @@ import type { OrderView } from "../checkout/mappers/order";
 
 const STEP_ICON: Record<string, IconName> = { pending: "clock", confirmed: "check", partial: "alert", failed: "alert", cancelled: "close", draft: "info" };
 
-export function OrderStatus({ order }: { order: OrderView }) {
+export function OrderStatus({ order, sample = false }: { order: OrderView; sample?: boolean }) {
   return (
     <div className="space-y-6">
       <section className="rounded-lg border border-line bg-surface p-4 sm:p-6" aria-labelledby="order-state">
@@ -49,7 +49,7 @@ export function OrderStatus({ order }: { order: OrderView }) {
             <li key={b.id} className="rounded-lg border border-line bg-surface p-4 sm:p-6">
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <p className="font-semibold">
-                  {b.providerLabel}
+                  Booked via {b.providerLabel}
                   {b.providerBookingId ? <span className="font-normal text-text-muted"> · ref {b.providerBookingId}</span> : null}
                 </p>
                 <Badge tone={b.tone}>{b.stateLabel}</Badge>
@@ -69,7 +69,12 @@ export function OrderStatus({ order }: { order: OrderView }) {
                           <span className="block text-caption text-text-muted">Issued {formatDateTime(t.issuedAt)}</span>
                         </span>
                       </span>
-                      {t.downloadUrl ? (
+                      {t.downloadUrl && sample ? (
+                        <span className="inline-flex items-center gap-1 text-body-sm text-text-muted">
+                          <Icon name="download" size={16} />
+                          Download (sample, no file)
+                        </span>
+                      ) : t.downloadUrl ? (
                         <a href={t.downloadUrl} className="inline-flex items-center gap-1 text-body-sm font-semibold underline" download>
                           <Icon name="download" size={16} />
                           Download

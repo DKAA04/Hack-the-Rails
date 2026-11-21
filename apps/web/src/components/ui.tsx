@@ -134,7 +134,7 @@ export function Badge({
   return (
     <span
       className={cx(
-        "inline-flex items-center gap-1 rounded-sm border px-2 py-0.5 text-caption font-semibold whitespace-nowrap",
+        "inline-flex items-center gap-1 rounded-sm border px-2 py-0.5 font-sans text-caption font-semibold tracking-normal whitespace-nowrap",
         badgeTone[tone],
         className,
       )}
@@ -233,7 +233,7 @@ export function PageHeader({
   return (
     <header className="flex flex-col gap-4 pt-8 pb-6 md:flex-row md:items-end md:justify-between md:pt-12">
       <div className="max-w-[70ch]">
-        <h1 className="font-display text-headline md:text-[2.5rem]">{title}</h1>
+        <h1 className="font-display text-headline">{title}</h1>
         {description ? (
           <p className="mt-2 text-body text-text-muted">{description}</p>
         ) : null}

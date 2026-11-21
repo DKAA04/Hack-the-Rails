@@ -31,7 +31,7 @@ export function useOnline() {
 
 export function Wordmark({ className }: { className?: string }) {
   return (
-    <span className={cx("font-display text-[1.625rem] leading-none font-extrabold tracking-[-0.04em]", className)}>
+    <span className={cx("font-display text-wordmark", className)}>
       wayward
       <span aria-hidden="true" className="ml-0.5 inline-block size-2 rounded-full bg-lime" />
     </span>
@@ -130,7 +130,7 @@ export function AppShell({ children }: { children: ReactNode }) {
                   <span className={cx("relative flex h-8 w-14 items-center justify-center rounded-full transition-colors", active && "bg-lime text-ink")}>
                     <Icon name={n.icon} size={20} />
                     {n.href === "/trip" && count > 0 ? (
-                      <span className="tnum absolute -top-1 right-1 min-w-5 rounded-full bg-white px-1 text-center text-[0.6875rem] leading-5 font-bold text-ink">
+                      <span className="tnum absolute -top-1 right-1 min-w-5 rounded-full bg-white px-1 text-center text-caption leading-5 font-bold text-ink">
                         {count}
                       </span>
                     ) : null}

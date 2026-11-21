@@ -1,6 +1,6 @@
 import { Icon, type IconName } from "../../components/icons";
 import { Badge, cx, type Tone } from "../../components/ui";
-import { formatDateTime, formatMoney } from "../../lib/format";
+import { formatDateTime } from "../../lib/format";
 import { JourneyTimeline } from "./journey-timeline";
 import type { Aftersale, JourneyView, PriceView } from "./mappers/journey";
 
@@ -29,7 +29,7 @@ export function PriceBreakdown({ price, isOffer }: { price: PriceView; isOffer: 
           {isOffer && price.total ? (
             <div className="flex justify-between gap-4 py-2">
               <dt>Wayward fee</dt>
-              <dd className="tnum">{formatMoney({ amount: 0, currency: price.total.currency })}</dd>
+              <dd>None added</dd>
             </div>
           ) : null}
           <div className="flex justify-between gap-4 py-2 font-bold">
@@ -79,8 +79,8 @@ export function FareConditions({ journey }: { journey: JourneyView }) {
       <section aria-label="Fare conditions">
         <h4 className="text-label">Conditions and seller</h4>
         <p className="mt-2 text-body-sm text-text-muted">
-          No seller yet. This journey comes from {journey.attribution ?? journey.providerLabel}, which publishes
-          timetables, not fares. Refunds, changes and baggage depend on whoever eventually sells the ticket.
+          No seller yet. This journey comes from {journey.providerLabel}, a timetable source that doesn&apos;t sell
+          tickets. Refunds, changes and baggage depend on whoever eventually sells it.
         </p>
       </section>
     );

@@ -250,7 +250,7 @@ export function CheckoutView() {
                 {phase.error.kind === "not_implemented"
                   ? "Wayward can't place this order yet, so nothing was booked or charged. Your trip and details are still here."
                   : phase.error.message}
-                {phase.error.requestId ? <span className="mt-1 block text-caption">Support code {phase.error.requestId}</span> : null}
+                {phase.error.requestId && phase.error.kind !== "not_implemented" ? <span className="mt-1 block text-caption">Support code {phase.error.requestId}</span> : null}
               </Notice>
             ) : null}
             {phase.kind === "quote" || phase.kind === "ordering" ? (

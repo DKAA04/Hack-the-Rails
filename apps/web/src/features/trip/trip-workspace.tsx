@@ -6,7 +6,7 @@ import { formatDuration, minutesBetween, plural } from "../../lib/format";
 import { ModeStrip } from "../comparison/journey-card";
 import { JourneyTimeline } from "../comparison/journey-timeline";
 import { MODE_LABEL, type JourneyView } from "../comparison/mappers/journey";
-import { findConflicts, tripTotal, type Conflict } from "./conflicts";
+import { findConflicts, nameOf, tripTotal, type Conflict } from "./conflicts";
 import { useTrip } from "./store";
 
 export function TripWorkspace() {
@@ -78,7 +78,7 @@ export function TripWorkspace() {
   function move(j: JourneyView, delta: -1 | 1) {
     trip.move(j.id, delta);
     const i = items.findIndex((x) => x.id === j.id) + delta;
-    setAnnounce(`${j.origin.name} to ${j.destination.name} moved to position ${i + 1} of ${items.length}.`);
+    setAnnounce(`${nameOf(j)} moved to position ${i + 1} of ${items.length}.`);
     requestAnimationFrame(() => document.getElementById(`trip-move-${j.id}-${delta}`)?.focus());
   }
 
@@ -86,7 +86,7 @@ export function TripWorkspace() {
     <>
       <PageHeader
         title={`${first.origin.name} to ${last.destination.name}`}
-        description={`${plural(items.length, "journey")} · ${span >= 0 ? formatDuration(span) + " end to end" : "times overlap"} · ${[...new Set(items.flatMap((j) => j.modes))]
+        description={`${plural(items.length, "leg")}${trip.options.length ? ` + ${plural(trip.options.length, "option")}` : ""} · ${span >= 0 && !dangers.length ? formatDuration(span) + " end to end" : "legs overlap"} · ${[...new Set(items.flatMap((j) => j.modes))]
           .filter((m) => m !== "walking" && m !== "transfer")
           .map((m) => MODE_LABEL[m].toLowerCase())
           .join(", ")}`}
@@ -95,7 +95,8 @@ export function TripWorkspace() {
         {announce}
       </p>
       <div className="grid gap-6 lg:grid-cols-[1fr_22rem] lg:items-start">
-        <ol aria-label="Trip journeys" className="space-y-0">
+        <div className="min-w-0">
+        <ol aria-label="Trip legs" className="space-y-0">
           {items.map((j, i) => (
             <li key={j.id}>
               <TripItem
@@ -105,15 +106,50 @@ export function TripWorkspace() {
                 onMove={(d) => move(j, d)}
                 onRemove={() => {
                   trip.remove(j.id);
-                  setAnnounce(`Removed ${j.origin.name} to ${j.destination.name}.`);
+                  setAnnounce(`Removed ${nameOf(j)}.`);
                 }}
               />
               {i < items.length - 1 ? <Connection a={j} b={items[i + 1]!} conflicts={conflictsFor(j.id)} /> : null}
             </li>
           ))}
         </ol>
+        {trip.options.length ? (
+          <section aria-labelledby="options-title" className="mt-8">
+            <h2 id="options-title" className="text-title">
+              Options you&apos;re comparing
+            </h2>
+            <p className="mt-1 text-body-sm text-text-muted">
+              Alternatives for a leg already in your trip. They don&apos;t count towards the total or the checks.
+            </p>
+            <ul className="mt-3 divide-y divide-line rounded-lg border border-line bg-surface">
+              {trip.options.map((o) => (
+                <li key={o.id} className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center">
+                  <div className="min-w-0 flex-1">
+                    <p className="tnum font-semibold">
+                      {o.departureLocal}–{o.arrivalLocal}
+                      <span className="font-normal text-text-muted"> · {o.dateLabel} · {formatDuration(o.durationMinutes)} · {o.changes === 0 ? "direct" : plural(o.changes, "change")}</span>
+                    </p>
+                    <p className="text-body-sm text-text-muted">
+                      {o.origin.name} → {o.destination.name} · {o.price.kind === "unknown" ? "price unknown" : `${o.price.display} (${o.price.kindLabel.toLowerCase()})`}
+                    </p>
+                  </div>
+                  <Button size="sm" variant="ghost" onClick={() => {
+                    trip.promoteOption(o.id);
+                    setAnnounce(`Using ${nameOf(o)} instead. The leg it replaced is now an option.`);
+                  }}>
+                    Use this instead
+                  </Button>
+                  <Button size="sm" variant="quiet" icon="trash" aria-label={`Remove option ${nameOf(o)}`} onClick={() => trip.remove(o.id)}>
+                    Remove
+                  </Button>
+                </li>
+              ))}
+            </ul>
+          </section>
+        ) : null}
+        </div>
 
-        <aside aria-label="Trip summary" className="on-ink rounded-lg bg-ink p-6 text-white lg:sticky lg:top-24">
+        <aside id="trip-summary" aria-label="Trip summary" className="on-ink rounded-lg bg-ink p-6 text-white lg:sticky lg:top-24">
           <h2 className="text-title">Trip total</h2>
           <p className="tnum mt-2 font-display text-headline">{total.knownDisplay}</p>
           <p className="mt-1 text-body-sm text-ink-muted">
@@ -146,7 +182,7 @@ export function TripWorkspace() {
               </p>
             )}
             {conflicts.some((c) => c.kind === "out_of_order") ? (
-              <Button variant="ghost" size="sm" className="mt-3" onClick={trip.sortByDeparture}>
+              <Button variant="quiet" size="sm" className="mt-3 text-white underline hover:bg-ink-raised" onClick={trip.sortByDeparture}>
                 Sort by departure
               </Button>
             ) : null}
@@ -156,7 +192,8 @@ export function TripWorkspace() {
             {!bookable.length || dangers.length > 0 ? (
               <button
                 type="button"
-                disabled
+                aria-disabled="true"
+                onClick={(e) => e.preventDefault()}
                 aria-describedby="checkout-reason"
                 className="flex h-12 w-full cursor-not-allowed items-center justify-center gap-2 rounded-md border border-ink-line bg-ink-raised font-semibold text-ink-muted"
               >
@@ -178,12 +215,44 @@ export function TripWorkspace() {
             </p>
           </div>
           <SaveTrip />
-          <Button variant="quiet" size="sm" icon="trash" className="mt-2 text-ink-muted hover:bg-ink-raised hover:text-white" onClick={trip.clear}>
-            Clear trip
-          </Button>
+          <ClearTrip />
         </aside>
       </div>
+      <div aria-hidden="true" className="h-20 lg:hidden" />
+      <div className="on-ink fixed inset-x-0 bottom-[calc(68px+env(safe-area-inset-bottom))] z-30 border-t border-ink-line bg-ink px-4 py-3 text-white md:bottom-0 lg:hidden">
+        <div className="mx-auto flex max-w-[1200px] items-center justify-between gap-3">
+          <p className="min-w-0">
+            <span className="tnum block font-semibold">{total.knownDisplay}</span>
+            <span className="block truncate text-caption text-ink-muted">
+              {dangers.length ? plural(dangers.length, "impossible connection") : checks.length ? plural(checks.length, "thing to check") : "Connections line up"}
+            </span>
+          </p>
+          <a href="#trip-summary" className="inline-flex h-11 shrink-0 items-center rounded-md bg-lime px-4 text-label text-ink no-underline">
+            Summary
+          </a>
+        </div>
+      </div>
     </>
+  );
+}
+
+function ClearTrip() {
+  const trip = useTrip();
+  const [confirm, setConfirm] = useState(false);
+  return confirm ? (
+    <div role="group" aria-label="Confirm clearing the trip" className="mt-3 flex flex-wrap items-center gap-2 text-body-sm">
+      <span className="text-ink-muted">Remove every leg and option?</span>
+      <Button size="sm" variant="danger" autoFocus onClick={() => { trip.clear(); setConfirm(false); }}>
+        Clear trip
+      </Button>
+      <Button size="sm" variant="quiet" className="text-white hover:bg-ink-raised" onClick={() => setConfirm(false)}>
+        Keep it
+      </Button>
+    </div>
+  ) : (
+    <Button variant="quiet" size="sm" icon="trash" className="mt-2 text-ink-muted hover:bg-ink-raised hover:text-white" onClick={() => setConfirm(true)}>
+      Clear trip
+    </Button>
   );
 }
 
@@ -203,8 +272,9 @@ function TripItem({
   const [open, setOpen] = useState(false);
   const id = useId();
   const label = `${j.origin.name} to ${j.destination.name}`;
+  const spoken = nameOf(j);
   return (
-    <article aria-label={`Journey ${index + 1}: ${label}`} className="rounded-lg border border-line bg-surface p-4 shadow-rest sm:p-6">
+    <article aria-label={`Leg ${index + 1}: ${spoken} to ${j.destination.name}`} className="rounded-lg border border-line bg-surface p-4 shadow-rest sm:p-6">
       <div className="flex items-start gap-4">
         <span className="tnum flex size-8 shrink-0 items-center justify-center rounded-full bg-ink text-label text-white">{index + 1}</span>
         <div className="min-w-0 flex-1">
@@ -217,7 +287,7 @@ function TripItem({
               {j.dateLabel} · {formatDuration(j.durationMinutes)}
             </span>
           </p>
-          <p className="mt-1 truncate font-semibold">{label}</p>
+          <p className="mt-1 font-semibold break-words">{label}</p>
           <div className="mt-2 flex flex-wrap items-center gap-2">
             <ModeStrip journey={j} />
             <Badge tone={j.price.kindTone}>{j.price.kind === "unknown" ? "Price unknown" : `${j.price.display} · ${j.price.kindLabel}`}</Badge>
@@ -235,8 +305,8 @@ function TripItem({
             type="button"
             disabled={index === 0}
             onClick={() => onMove(-1)}
-            aria-label={`Move ${label} earlier`}
-            className="flex size-9 items-center justify-center rounded-md border border-line-strong hover:border-ink disabled:opacity-30"
+            aria-label={`Move ${spoken} earlier`}
+            className="flex size-11 items-center justify-center rounded-md border border-line-strong hover:border-ink disabled:opacity-30"
           >
             <Icon name="arrow-up" size={16} />
           </button>
@@ -245,16 +315,16 @@ function TripItem({
             type="button"
             disabled={index === count - 1}
             onClick={() => onMove(1)}
-            aria-label={`Move ${label} later`}
-            className="flex size-9 items-center justify-center rounded-md border border-line-strong hover:border-ink disabled:opacity-30"
+            aria-label={`Move ${spoken} later`}
+            className="flex size-11 items-center justify-center rounded-md border border-line-strong hover:border-ink disabled:opacity-30"
           >
             <Icon name="arrow-down" size={16} />
           </button>
           <button
             type="button"
             onClick={onRemove}
-            aria-label={`Remove ${label}`}
-            className="flex size-9 items-center justify-center rounded-md border border-line-strong text-danger hover:border-danger hover:bg-danger-wash"
+            aria-label={`Remove ${spoken}`}
+            className="flex size-11 items-center justify-center rounded-md border border-line-strong text-danger hover:border-danger hover:bg-danger-wash"
           >
             <Icon name="trash" size={16} />
           </button>

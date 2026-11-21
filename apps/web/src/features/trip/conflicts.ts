@@ -9,7 +9,9 @@ export interface Conflict {
   message: string;
 }
 
-const short = (j: JourneyView) => `${j.origin.name} → ${j.destination.name}`;
+/** Name a journey by its departure, so repeated routes stay distinguishable. */
+export const nameOf = (j: JourneyView) => `the ${j.departureLocal} ${j.dateLabel} from ${j.origin.name}`;
+const short = nameOf;
 
 export function findConflicts(items: JourneyView[]): Conflict[] {
   const out: Conflict[] = [];
@@ -31,7 +33,7 @@ export function findConflicts(items: JourneyView[]): Conflict[] {
         kind: "overlap",
         severity: "danger",
         between: [a.id, b.id],
-        message: `Impossible connection: ${short(b)} leaves at ${b.departureLocal}, ${formatDuration(-gap)} before ${short(a)} arrives at ${a.arrivalLocal}.`,
+        message: `Impossible connection: ${short(b)} leaves ${formatDuration(-gap)} before ${short(a)} arrives (${a.arrivalLocal}).`,
       });
       continue;
     }

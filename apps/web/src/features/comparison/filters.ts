@@ -85,6 +85,14 @@ export function applyFilters(journeys: JourneyView[], f: Filters) {
   });
 }
 
+/** Connection risk: impossible > tight > self-transfer > fine. */
+export function risk(j: JourneyView) {
+  if (j.worstTransfer === "impossible") return 3;
+  if (j.worstTransfer === "tight") return 2;
+  if (j.transfers.some((t) => t.protection === "self_transfer")) return 1;
+  return 0;
+}
+
 /** Unknown prices always sort after known ones; never treated as zero. */
 export function sortJourneys(journeys: JourneyView[], key: SortKey) {
   const list = [...journeys];
@@ -107,8 +115,7 @@ export function sortJourneys(journeys: JourneyView[], key: SortKey) {
       return list.sort(
         (a, b) =>
           Number(b.bookable) - Number(a.bookable) ||
-          Number(a.worstTransfer === "impossible") -
-            Number(b.worstTransfer === "impossible") ||
+          risk(a) - risk(b) ||
           price(a) - price(b) ||
           a.durationMinutes - b.durationMinutes,
       );

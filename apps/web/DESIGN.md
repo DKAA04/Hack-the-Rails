@@ -70,6 +70,12 @@ typography:
     fontSize: "0.75rem"
     fontWeight: 500
     lineHeight: 1.35
+  wordmark:
+    fontFamily: "Bricolage Grotesque, Inter, system-ui, sans-serif"
+    fontSize: "1.625rem"
+    fontWeight: 800
+    lineHeight: 1
+    letterSpacing: "-0.04em"
   data:
     fontFamily: "Inter, system-ui, sans-serif"
     fontSize: "1.25rem"
@@ -266,6 +272,7 @@ A two-pole palette: ink navy for structure and authority, electric lime as the o
 - **Label** (600, 0.8125rem, 1.3): form labels, chips, tabs, badges. Sentence case.
 - **Caption** (500, 0.75rem, 1.35): attribution, freshness, fine print.
 - **Data** (700, 1.25rem, tabular numerals): departure/arrival times and durations.
+- **Wordmark** (800, 1.625rem, -0.04em): the "wayward" logotype in the navigation only.
 
 ### Named Rules
 **The Tabular Time Rule.** Times, durations and money always use tabular numerals so columns of departures align.

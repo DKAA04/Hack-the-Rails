@@ -68,6 +68,7 @@ export function OrdersList() {
           <h2 id="lookup-title" className="text-title">
             Find an order
           </h2>
+          <p className="mt-1 text-body-sm text-text-muted">Order lookup isn&apos;t connected yet. You&apos;ll see an honest status page, not a guess.</p>
           <label htmlFor="order-ref" className="mt-3 mb-2 block text-label">
             Order reference
           </label>
@@ -87,7 +88,7 @@ export function OrdersList() {
               {error}
             </p>
           ) : null}
-          <Button type="submit" variant="secondary" className="mt-4 w-full">
+          <Button type="submit" variant="ghost" className="mt-4 w-full">
             Look up
           </Button>
         </form>

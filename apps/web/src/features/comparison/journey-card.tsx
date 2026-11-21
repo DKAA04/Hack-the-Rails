@@ -35,7 +35,9 @@ export function JourneyCard({
   const [expanded, setExpanded] = useState(expandedProp ?? false);
   const detailsId = useId();
   const trip = useTrip();
-  const inTrip = trip.has(journey.id);
+  const role = trip.roleOf(journey.id);
+  const inTrip = role !== null;
+  const [note, setNote] = useState("");
   const j = journey;
 
   return (
@@ -44,7 +46,7 @@ export function JourneyCard({
       aria-label={`${j.departureLocal} ${j.origin.name} to ${j.arrivalLocal} ${j.destination.name}, ${formatDuration(j.durationMinutes)}, ${j.price.display}`}
       className={cx(
         "scroll-mt-24 rounded-lg border bg-surface p-4 shadow-rest transition-shadow duration-200 hover:shadow-lift sm:p-6",
-        picks.length ? "border-ink" : "border-line",
+        "border-line",
       )}
     >
       {picks.length ? (
@@ -87,8 +89,8 @@ export function JourneyCard({
             </span>
           </div>
           <div className="mt-2 flex justify-between gap-4 text-body-sm">
-            <span className="truncate">{j.origin.name}</span>
-            <span className="truncate text-right">{j.destination.name}</span>
+            <span className="min-w-0 break-words">{j.origin.name}</span>
+            <span className="min-w-0 break-words text-right">{j.destination.name}</span>
           </div>
           <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-2">
             <ModeStrip journey={j} />
@@ -125,11 +127,13 @@ export function JourneyCard({
           </p>
         </div>
 
-        <div className="flex items-end justify-between gap-4 border-t border-line pt-4 md:min-w-44 md:flex-col md:items-end md:border-t-0 md:pt-0">
+        <div className="flex flex-col gap-3 border-t border-line pt-4 md:min-w-44 md:items-end md:border-t-0 md:pt-0">
           <div className="md:text-right">
-            <p className={cx("tnum font-display text-title-lg", !j.price.total && j.price.kind !== "published_tariff_range" && "text-text-muted")}>
-              {j.price.display}
-            </p>
+            {j.price.kind === "unknown" ? (
+              <p className="text-body-sm font-semibold whitespace-nowrap text-text-muted">Price unknown</p>
+            ) : (
+              <p className="tnum font-display text-title-lg">{j.price.display}</p>
+            )}
             {j.price.kind !== "unknown" ? (
               <p className="mt-1 flex flex-wrap items-center gap-1 md:justify-end">
                 <Badge tone={j.price.kindTone}>{j.price.kindLabel}</Badge>
@@ -140,34 +144,46 @@ export function JourneyCard({
             )}
             {j.seller ? <p className="mt-1 text-caption text-text-muted">Sold by {j.seller.name}</p> : null}
           </div>
-          <div className="flex gap-2">
+          <div className="flex justify-between gap-2 md:justify-end">
+            <Button
+              variant="quiet"
+              size="sm"
+              iconAfter="chevron-down"
+              aria-expanded={expanded}
+              aria-controls={detailsId}
+              onClick={() => setExpanded((v) => !v)}
+              className={cx("[&>svg]:transition-transform", expanded && "[&>svg]:rotate-180")}
+            >
+              {expanded ? "Hide details" : "Details"}
+            </Button>
             <Button
               variant={inTrip ? "secondary" : "ghost"}
               size="sm"
               icon={inTrip ? "check" : "plus"}
-              onClick={() => (inTrip ? trip.remove(j.id) : trip.add(j))}
+              onClick={() => {
+                if (inTrip) {
+                  trip.remove(j.id);
+                  setNote("Removed from your trip.");
+                } else {
+                  const r = trip.add(j);
+                  setNote(
+                    r === "option"
+                      ? "Saved as an option: it covers the same route or time as a leg already in your trip."
+                      : "Added to your trip as the next leg.",
+                  );
+                }
+              }}
               aria-pressed={inTrip}
             >
-              {inTrip ? "In trip" : "Add to trip"}
+              {role === "option" ? "Saved option" : inTrip ? "In trip" : "Add to trip"}
             </Button>
           </div>
         </div>
       </div>
 
-      <div className="mt-4 flex items-center justify-between gap-4">
-        <p className="text-caption text-text-muted">{j.bookable ? "Bookable once checkout is connected" : j.notBookableReason}</p>
-        <Button
-          variant="quiet"
-          size="sm"
-          iconAfter="chevron-down"
-          aria-expanded={expanded}
-          aria-controls={detailsId}
-          onClick={() => setExpanded((v) => !v)}
-          className={cx("shrink-0 [&>svg]:transition-transform", expanded && "[&>svg]:rotate-180")}
-        >
-          {expanded ? "Hide details" : "Details"}
-        </Button>
-      </div>
+      <p role="status" className={note || (j.source === "offer" && !j.bookable) ? "mt-3 text-caption text-text-muted" : "sr-only"}>
+        {note || (j.source === "offer" && !j.bookable ? j.notBookableReason : "")}
+      </p>
       <div id={detailsId} hidden={!expanded} className="mt-4">
         {expanded ? <JourneyDetails journey={j} /> : null}
       </div>

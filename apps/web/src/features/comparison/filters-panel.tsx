@@ -130,7 +130,9 @@ export function FiltersPanel({
             count={unknownPrices}
           />
         ) : null}
-        <Check label="Bookable offers only" checked={filters.bookableOnly} onChange={(v) => set({ bookableOnly: v })} />
+        {journeys.some((j) => j.bookable) || filters.bookableOnly ? (
+          <Check label="Bookable offers only" checked={filters.bookableOnly} onChange={(v) => set({ bookableOnly: v })} />
+        ) : null}
       </Group>
 
       <Group title="Journey">
@@ -170,7 +172,7 @@ export function FiltersPanel({
       </Group>
 
       <Group title="Departure time">
-        {WINDOWS.map((w) => (
+        {WINDOWS.filter((w) => filters.windows.includes(w.id) || journeys.some((j) => j.departureHour >= w.from && j.departureHour < w.to)).map((w) => (
           <Check
             key={w.id}
             label={w.label}
@@ -181,6 +183,7 @@ export function FiltersPanel({
         ))}
       </Group>
 
+      {journeys.some((j) => (j.baggage.checked ?? 0) > 0) || filters.checkedBagIncluded ? (
       <Group title="Baggage">
         <Check
           label="Checked bag included"
@@ -190,6 +193,7 @@ export function FiltersPanel({
         />
         <p className="text-caption text-text-muted">Only counts sellers that say so. Unknown isn&apos;t included.</p>
       </Group>
+      ) : null}
 
       {sellers.size > 1 ? (
         <Group title="Seller">

@@ -40,7 +40,7 @@ export function PaymentSlot({ state }: { state: PaymentSlotState }) {
           ? "Wayward doesn't take payments yet. Nothing has been charged, and no card details were asked for or stored."
           : "Once the price is confirmed and the order is placed, you'll pay on the payment provider's secure page. Wayward never sees your card number."}
       </p>
-      {state.kind === "unavailable" && state.error.requestId ? (
+      {state.kind === "unavailable" && state.error.requestId && state.error.kind !== "not_implemented" ? (
         <p className="mt-1 text-caption text-text-muted">Support code {state.error.requestId}</p>
       ) : null}
     </div>

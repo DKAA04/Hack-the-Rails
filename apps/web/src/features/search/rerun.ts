@@ -3,6 +3,24 @@ import { api } from "../../lib/api-client";
 import { toSearchIntent, type SearchFormState } from "./mappers/intent";
 
 export const LAST_SEARCH_KEY = "wayward.search.v1";
+export const LAST_SEARCH_ID_KEY = "wayward.searchId.v1";
+
+export function rememberSearchId(id: string) {
+  try {
+    sessionStorage.setItem(LAST_SEARCH_ID_KEY, id);
+  } catch {
+    /* storage blocked */
+  }
+}
+/** The stored form only describes this results page if it produced this searchId. */
+export function lastSearchFor(searchId: string): SearchFormState | null {
+  try {
+    if (sessionStorage.getItem(LAST_SEARCH_ID_KEY) !== searchId) return null;
+  } catch {
+    return null;
+  }
+  return readLastSearch();
+}
 
 export function readLastSearch(): SearchFormState | null {
   try {
@@ -20,5 +38,6 @@ export async function rerunLastSearch(): Promise<string | null> {
   const r = toSearchIntent(last);
   if (!r.ok) return null;
   const receipt = await api.search(r.intent);
+  rememberSearchId(receipt.searchId);
   return receipt.searchId;
 }

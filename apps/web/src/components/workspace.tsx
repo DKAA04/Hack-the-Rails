@@ -25,7 +25,7 @@ export function Workspace() {
   return (
     <>
       <section className="pt-10 pb-8 md:pt-16 md:pb-10">
-        <h1 className="max-w-[18ch] font-display text-[2.5rem] leading-[1.04] font-extrabold tracking-[-0.035em] md:text-display lg:text-[3.75rem]">
+        <h1 className="max-w-[18ch] font-display text-headline font-extrabold sm:text-display">
           Every way across Europe<span className="text-lime-deep">.</span>
         </h1>
         <p className="mt-4 max-w-[58ch] text-body text-text-muted md:text-title md:font-normal">
@@ -85,25 +85,34 @@ export function Workspace() {
             </div>
           ) : (
             <ul className="divide-y divide-line rounded-lg border border-line bg-surface">
-              <li className="flex flex-wrap items-center gap-x-4 gap-y-1 p-4">
-                <span className="w-32 font-semibold">Public timetables</span>
-                <span className="flex-1 text-body-sm text-text-muted">Train, ferry, local · times only, no prices or seats</span>
-                <Badge tone="info">Timetables</Badge>
-              </li>
-              {state.data.providers.map((p) => {
-                const t = SEARCH_TONE[p.search] ?? { label: p.search, tone: "neutral" as Tone };
-                return (
-                  <li key={p.id} className="flex flex-wrap items-center gap-x-4 gap-y-1 p-4">
-                    <span className="w-32 font-semibold">{providerLabel(p.id)}</span>
-                    <span className="flex-1 text-body-sm text-text-muted">
-                      {p.modes.map((m) => MODE_LABEL[m]).join(", ")}
-                    </span>
-                    <Badge tone={t.tone}>{t.label}</Badge>
+              {state.data.providers
+                .filter((p) => p.search !== "not_implemented" && p.search !== "unsupported")
+                .map((p) => {
+                  const t = SEARCH_TONE[p.search] ?? { label: p.search, tone: "neutral" as Tone };
+                  const timetable = p.id === "public-transit";
+                  return (
+                    <li key={p.id} className="flex flex-wrap items-center gap-x-4 gap-y-1 p-4">
+                      <span className="w-36 font-semibold">{timetable ? "Public timetables" : providerLabel(p.id)}</span>
+                      <span className="flex-1 text-body-sm text-text-muted">
+                        {p.modes.filter((m) => m !== "walking" && m !== "transfer").map((m) => MODE_LABEL[m]).join(", ")}
+                        {timetable ? " · times only, no prices or seats · Berlin and Brandenburg in detail" : ""}
+                      </span>
+                      <Badge tone={t.tone}>{timetable && p.search === "available" ? "Timetables" : t.label}</Badge>
+                    </li>
+                  );
+                })}
+              {(() => {
+                const later = state.data.providers.filter((p) => p.search === "not_implemented" || p.search === "unsupported");
+                return later.length ? (
+                  <li className="flex flex-wrap items-center gap-x-4 gap-y-1 p-4">
+                    <span className="w-36 font-semibold">Coming later</span>
+                    <span className="flex-1 text-body-sm text-text-muted">{later.map((p) => providerLabel(p.id)).join(", ")}</span>
+                    <Badge>Not integrated yet</Badge>
                   </li>
-                );
-              })}
+                ) : null;
+              })()}
               <li className="flex flex-wrap items-center gap-x-4 gap-y-1 p-4">
-                <span className="w-32 font-semibold">Payments</span>
+                <span className="w-36 font-semibold">Payments</span>
                 <span className="flex-1 text-body-sm text-text-muted">Checkout and tickets</span>
                 <Badge tone={state.data.paymentsConnected ? "ok" : "neutral"}>
                   {state.data.paymentsConnected ? "Available" : "Not available yet"}

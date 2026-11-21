@@ -30,12 +30,13 @@ export function OrderPage({ orderId, sample }: { orderId: string; sample: string
     return (
       <>
         <PageHeader
-          title={
-            <span className="flex flex-wrap items-center gap-3">
-              Order preview <SampleDataBadge />
+          title="Order preview"
+          description={
+            <span className="flex flex-wrap items-center gap-2">
+              <SampleDataBadge />
+              How an order looks in each state. Not a real booking, payment or ticket.
             </span>
           }
-          description="Sample data showing how an order looks in each state. Not a real booking, payment or ticket."
         />
         <nav aria-label="Sample states" className="mb-6 flex flex-wrap gap-2">
           {(Object.keys(SAMPLE_ORDERS) as SampleOrderKey[]).map((k) => (
@@ -49,7 +50,7 @@ export function OrderPage({ orderId, sample }: { orderId: string; sample: string
             </Link>
           ))}
         </nav>
-        <OrderStatus order={sampleOrderView(sampleKey)} />
+        <OrderStatus order={sampleOrderView(sampleKey)} sample />
       </>
     );
 
@@ -90,7 +91,7 @@ export function OrderPage({ orderId, sample }: { orderId: string; sample: string
             {load.error.kind === "not_implemented"
               ? "Wayward can't look up orders yet. If a seller emailed you, their confirmation is the source of truth."
               : load.error.message}
-            {load.error.requestId ? <span className="mt-1 block text-caption">Support code {load.error.requestId}</span> : null}
+            {load.error.requestId && load.error.kind !== "not_implemented" ? <span className="mt-1 block text-caption">Support code {load.error.requestId}</span> : null}
           </Notice>
         )}
       </div>

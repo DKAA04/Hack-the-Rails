@@ -7,7 +7,7 @@ import { Badge, Button, ButtonLink, Notice, Skeleton, cx } from "../../component
 import { api } from "../../lib/api-client";
 import { formatDateTime, formatDuration, plural } from "../../lib/format";
 import { isAbort, toErrorView, type ErrorView } from "../common/mappers/errors";
-import { readLastSearch, rerunLastSearch } from "../search/rerun";
+import { lastSearchFor, rerunLastSearch } from "../search/rerun";
 import { useTrip } from "../trip/store";
 import { EMPTY_FILTERS, activeFilterCount, applyFilters, sortJourneys, type Filters, type SortKey } from "./filters";
 import { FiltersPanel } from "./filters-panel";
@@ -16,6 +16,13 @@ import { toResultsView, type ResultsView as Results } from "./mappers/journey";
 import { computePicks, dominantCurrency, type PickKey } from "./picks";
 
 const STALE_AFTER_MS = 15 * 60_000;
+const SORT_EXPLAIN: Record<SortKey, string> = {
+  recommended: "Recommended: bookable first, then safer connections (tight and self-transfer changes drop down), then price and duration.",
+  departure: "In departure order, like a departure board.",
+  price: "Lowest known complete price first.",
+  duration: "Shortest door-to-door time first.",
+  changes: "Fewest changes first, then shortest.",
+};
 
 type Load =
   | { status: "loading" }
@@ -28,6 +35,7 @@ export function ResultsView({ searchId }: { searchId: string }) {
   const [rerunning, setRerunning] = useState(false);
   const [rerunError, setRerunError] = useState<ErrorView | null>(null);
   const [route, setRoute] = useState<string | null>(null);
+  const [canRerun, setCanRerun] = useState(false);
 
   const fetchResults = useCallback(
     (signal?: AbortSignal) => {
@@ -45,7 +53,8 @@ export function ResultsView({ searchId }: { searchId: string }) {
   useEffect(() => {
     const ac = new AbortController();
     fetchResults(ac.signal);
-    const last = readLastSearch();
+    const last = lastSearchFor(searchId);
+    setCanRerun(!!last);
     if (last?.origin && last.destination) setRoute(`${last.origin.name} to ${last.destination.name}`);
     return () => ac.abort();
   }, [fetchResults]);
@@ -73,13 +82,13 @@ export function ResultsView({ searchId }: { searchId: string }) {
     <div className="pt-8 md:pt-10">
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
-          <Link href="/" className="inline-flex items-center gap-1 text-body-sm text-text-muted underline-offset-4 hover:underline">
+          <Link href="/" className="inline-flex min-h-11 items-center gap-1 text-body-sm text-text-muted underline-offset-4 hover:underline">
             <Icon name="arrow-right" size={14} className="rotate-180" />
             Edit search
           </Link>
-          <h1 className="mt-2 font-display text-headline">{title}</h1>
+          <h1 className="mt-2 font-display text-title-lg sm:text-headline">{title}</h1>
         </div>
-        {load.status === "ready" ? (
+        {load.status === "ready" && canRerun ? (
           <Button variant="ghost" size="sm" icon="refresh" onClick={rerun} loading={rerunning} disabled={rerunning}>
             Search again
           </Button>
@@ -96,7 +105,7 @@ export function ResultsView({ searchId }: { searchId: string }) {
         {load.status === "error" ? (
           <ErrorState error={load.error} onRetry={() => fetchResults()} />
         ) : null}
-        {load.status === "ready" ? <Loaded data={load.data} onRerun={rerun} rerunning={rerunning} /> : null}
+        {load.status === "ready" ? <Loaded data={load.data} onRerun={canRerun ? rerun : null} rerunning={rerunning} /> : null}
       </div>
     </div>
   );
@@ -113,7 +122,7 @@ function ErrorState({ error, onRetry }: { error: ErrorView; onRetry: () => void 
           ? "It may have expired, or the link is incomplete. Searches aren't kept forever because prices go stale."
           : error.message}
       </p>
-      {error.requestId ? <p className="mt-2 text-caption text-text-muted">Support code {error.requestId}</p> : null}
+      {error.requestId && error.kind !== "not_implemented" && error.kind !== "not_found" ? <p className="mt-2 text-caption text-text-muted">Support code {error.requestId}</p> : null}
       <div className="mt-6 flex flex-wrap gap-3">
         {!notFound && error.retryable ? (
           <Button icon="refresh" onClick={onRetry}>
@@ -153,53 +162,68 @@ function ResultsSkeleton() {
   );
 }
 
-function ProviderSummary({ data, onRerun, rerunning }: { data: Results; onRerun: () => void; rerunning: boolean }) {
+function ProviderSummary({ data, onRerun, rerunning }: { data: Results; onRerun: (() => void) | null; rerunning: boolean }) {
+  const failed = data.providers.filter((p) => p.status === "failed");
   const [open, setOpen] = useState(data.state === "failed");
-  const failed = data.providers.filter((p) => p.status === "failed" || p.status === "unconfigured");
-  const tone = data.state === "failed" ? "danger" : data.state === "partial" ? "warn" : "ok";
+  const tone = data.state === "failed" || (failed.length && !data.journeys.length) ? "danger" : failed.length ? "warn" : "neutral";
+  const answered = data.providers.filter((p) => p.status === "complete").map((p) => p.label);
   const title =
     data.asked === 0
       ? "No connected source covers this search"
-      : `${data.answered} of ${plural(data.asked, "source")} answered`;
+      : failed.length
+        ? `${failed.map((p) => p.label).join(", ")} didn't answer`
+        : `Answered by ${answered.join(", ") || "no source"}`;
+  const subtitle =
+    data.offerCount === 0 && data.journeys.length
+      ? "Timetables only: real departures, no prices or seats yet."
+      : data.offerCount
+        ? `${plural(data.offerCount, "priced offer")}${data.timetableCount ? `, ${plural(data.timetableCount, "timetable result")}` : ""}.`
+        : null;
   return (
-    <section aria-label="Sources" className={cx("mt-6 rounded-lg border p-4", tone === "ok" ? "border-line bg-surface" : tone === "warn" ? "border-transparent bg-warn-wash" : "border-transparent bg-danger-wash")}>
+    <section
+      aria-label="Sources"
+      className={cx(
+        "mt-6 rounded-lg border p-4",
+        tone === "neutral" ? "border-line bg-surface" : tone === "warn" ? "border-transparent bg-warn-wash" : "border-transparent bg-danger-wash",
+      )}
+    >
       <div className="flex flex-wrap items-center gap-3">
-        <Icon name={tone === "ok" ? "check" : "alert"} size={20} className={tone === "ok" ? "text-ok" : tone === "warn" ? "text-warn" : "text-danger"} />
-        <p className="flex-1 font-semibold">
-          {title}
-          {data.notIntegrated ? (
-            <span className="font-normal text-text-muted"> · {data.notIntegrated} more not integrated yet</span>
-          ) : null}
+        <Icon name={tone === "neutral" ? "info" : "alert"} size={20} className={tone === "neutral" ? "text-text-muted" : tone === "warn" ? "text-warn" : "text-danger"} />
+        <p className="min-w-0 flex-1 basis-56">
+          <span className="font-semibold">{title}.</span>
+          {subtitle ? <span className="text-text-muted"> {subtitle}</span> : null}
         </p>
-        {failed.length ? (
+        {failed.length && onRerun ? (
           <Button variant="ghost" size="sm" icon="refresh" onClick={onRerun} loading={rerunning} disabled={rerunning}>
-            Retry
+            Search again
           </Button>
         ) : null}
         <Button variant="quiet" size="sm" aria-expanded={open} onClick={() => setOpen((v) => !v)}>
-          {open ? "Hide sources" : "Show sources"}
+          {open ? "Hide sources" : "All sources"}
         </Button>
       </div>
       {open ? (
-        <ul className="mt-3 divide-y divide-line/70 text-body-sm">
-          {data.providers.map((p) => (
-            <li key={p.id} className="flex flex-wrap items-center gap-x-3 gap-y-1 py-2">
-              <span className="w-40 font-semibold">{p.label}</span>
-              <Badge tone={p.tone}>{p.statusLabel}</Badge>
-              {p.message ? <span className="text-text-muted">{p.message}</span> : null}
-            </li>
-          ))}
-        </ul>
-      ) : null}
-      {open && data.warnings.length ? (
-        <ul className="mt-2 space-y-1 text-body-sm text-text-muted">
-          {data.warnings.map((w) => (
-            <li key={w} className="flex gap-2">
-              <Icon name="info" size={16} className="mt-0.5 shrink-0" />
-              {w}
-            </li>
-          ))}
-        </ul>
+        <>
+          <ul className="mt-3 divide-y divide-line/70 text-body-sm">
+            {data.providers.map((p) => (
+              <li key={p.id} className="flex flex-wrap items-center gap-x-3 gap-y-1 py-2">
+                <span className="w-40 font-semibold">{p.label}</span>
+                <Badge tone={p.tone}>{p.statusLabel}</Badge>
+                {p.message ? <span className="text-text-muted">{p.message}</span> : null}
+              </li>
+            ))}
+          </ul>
+          {data.warnings.length ? (
+            <ul className="mt-2 space-y-1 text-body-sm text-text-muted">
+              {data.warnings.map((w) => (
+                <li key={w} className="flex gap-2">
+                  <Icon name="info" size={16} className="mt-0.5 shrink-0" />
+                  {w}
+                </li>
+              ))}
+            </ul>
+          ) : null}
+        </>
       ) : null}
     </section>
   );
@@ -281,10 +305,11 @@ function Comparison({ journeys }: { journeys: Results["journeys"] }) {
                 size="sm"
                 variant="primary"
                 icon={trip.has(pick.journey.id) ? "check" : "plus"}
+                title={trip.roleOf(pick.journey.id) === "option" ? "Saved as an option to compare" : undefined}
                 aria-pressed={trip.has(pick.journey.id)}
                 onClick={() => (trip.has(pick.journey!.id) ? trip.remove(pick.journey!.id) : trip.add(pick.journey!))}
               >
-                {trip.has(pick.journey.id) ? "In trip" : "Add to trip"}
+                {trip.roleOf(pick.journey.id) === "option" ? "Saved option" : trip.has(pick.journey.id) ? "In trip" : "Add to trip"}
               </Button>
             </div>
           </div>
@@ -296,9 +321,10 @@ function Comparison({ journeys }: { journeys: Results["journeys"] }) {
   );
 }
 
-function Loaded({ data, onRerun, rerunning }: { data: Results; onRerun: () => void; rerunning: boolean }) {
+function Loaded({ data, onRerun, rerunning }: { data: Results; onRerun: (() => void) | null; rerunning: boolean }) {
   const [filters, setFilters] = useState<Filters>(EMPTY_FILTERS);
-  const [sort, setSort] = useState<SortKey>("recommended");
+  // With no prices, the honest default is a departure board.
+  const [sort, setSort] = useState<SortKey>(data.offerCount ? "recommended" : "departure");
   const [showFilters, setShowFilters] = useState(false);
   const [now, setNow] = useState(() => Date.now());
   useEffect(() => {
@@ -332,7 +358,7 @@ function Loaded({ data, onRerun, rerunning }: { data: Results; onRerun: () => vo
             <ButtonLink href="/" icon="search">
               Change search
             </ButtonLink>
-            {failed ? (
+            {failed && onRerun ? (
               <Button variant="ghost" icon="refresh" onClick={onRerun} loading={rerunning}>
                 Try again
               </Button>
@@ -352,18 +378,18 @@ function Loaded({ data, onRerun, rerunning }: { data: Results; onRerun: () => vo
           title={`These results are from ${formatDateTime(data.updatedAt)}`}
           className="mt-4"
           action={
-            <Button variant="ghost" size="sm" icon="refresh" onClick={onRerun} loading={rerunning}>
-              Refresh results
-            </Button>
+            onRerun ? (
+              <Button variant="ghost" size="sm" icon="refresh" onClick={onRerun} loading={rerunning}>
+                Refresh results
+              </Button>
+            ) : (
+              <ButtonLink href="/" variant="ghost" size="sm" icon="search">
+                New search
+              </ButtonLink>
+            )
           }
         >
           Prices, seats and timetables may have changed since. We&apos;ll recheck any offer before you pay.
-        </Notice>
-      ) : null}
-      {data.offerCount === 0 ? (
-        <Notice tone="info" title="Timetables only, no prices yet" className="mt-4">
-          {data.timetableCount} {data.timetableCount === 1 ? "journey comes" : "journeys come"} from public timetables. They show
-          real departures, but no seller has offered seats or a price, so you can plan with them, not book them.
         </Notice>
       ) : null}
 
@@ -394,29 +420,31 @@ function Loaded({ data, onRerun, rerunning }: { data: Results; onRerun: () => vo
               >
                 Filters{nFilters ? ` (${nFilters})` : ""}
               </Button>
-              <label htmlFor="sort" className="sr-only">
-                Sort by
+              <label htmlFor="sort" className="text-label">
+                Sort
               </label>
               <select
                 id="sort"
                 value={sort}
                 onChange={(e) => setSort(e.target.value as SortKey)}
+                aria-describedby="sort-explain"
                 className="h-10 rounded-md border border-line-strong bg-surface px-3 text-label"
               >
-                <option value="recommended">Sort: recommended</option>
-                <option value="price">Sort: price</option>
-                <option value="duration">Sort: duration</option>
-                <option value="departure">Sort: departure time</option>
-                <option value="changes">Sort: fewest changes</option>
+                <option value="recommended">Recommended</option>
+                <option value="departure">Departure time</option>
+                <option value="price">Price</option>
+                <option value="duration">Duration</option>
+                <option value="changes">Fewest changes</option>
               </select>
             </div>
           </div>
           <div id="mobile-filters" hidden={!showFilters} className="mt-4 rounded-lg border border-line bg-surface p-4 lg:hidden">
             <FiltersPanel journeys={data.journeys} filters={filters} onChange={setFilters} currency={currency} />
           </div>
-          {sort === "price" && data.journeys.some((j) => !j.price.total) ? (
-            <p className="mt-2 text-caption text-text-muted">Unknown prices sort last. They&apos;re not free.</p>
-          ) : null}
+          <p id="sort-explain" className="mt-2 text-caption text-text-muted">
+            {SORT_EXPLAIN[sort]}
+            {sort === "price" && data.journeys.some((j) => !j.price.total) ? " Unknown prices sort last. They're not free." : ""}
+          </p>
           {visible.length ? (
             <ul className="mt-4 space-y-4">
               {visible.map((j) => (
