@@ -214,3 +214,16 @@ test("only mapper modules and the API client import contracts in apps/web", () =
   walk(root);
   assert.deepEqual(offenders, []);
 });
+
+test("zero-length connector legs are folded into one real change", async () => {
+  const { collapseTrivialConnectors } = await import("../apps/web/src/features/comparison/mappers/journey");
+  const base = offer("z", { dep: "2026-11-22T07:19:00Z", arr: "2026-11-22T07:29:00Z", legs: 1 }).itinerary;
+  const l1 = { ...base.legs[0]!, id: "l1", destination: B, arrivalUtc: "2026-11-22T07:29:00Z" };
+  const walk = { ...l1, id: "w", mode: "walking" as const, origin: B, destination: B, departureUtc: "2026-11-22T07:29:00Z", arrivalUtc: "2026-11-22T07:29:00Z" };
+  const l3 = { ...l1, id: "l3", origin: B, destination: C, departureUtc: "2026-11-22T07:34:00Z", arrivalUtc: "2026-11-22T07:51:00Z" };
+  const t = (f: string, to: string, d: number) => ({ fromLegId: f, toLegId: to, durationMinutes: d, minimumMinutes: null, protection: "unknown" as const, changeLocation: false, instructions: null, compatibility: "unverified" as const });
+  const out = collapseTrivialConnectors({ ...base, legs: [l1, walk, l3], transfers: [t("l1", "w", 0), t("w", "l3", 5)] });
+  assert.deepEqual(out.legs.map((l) => l.id), ["l1", "l3"]);
+  assert.equal(out.transfers.length, 1);
+  assert.equal(out.transfers[0]!.durationMinutes, 5);
+});

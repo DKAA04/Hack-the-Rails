@@ -57,7 +57,7 @@ export function computePicks(journeys: JourneyView[]): Record<PickKey, Pick> {
       key: "cheapest",
       title: PICK_TITLE.cheapest,
       journey: cheapest,
-      headline: cheapest ? cheapest.price.display : "No prices to compare",
+      headline: cheapest ? cheapest.price.display : "No prices",
       reason: cheapest
         ? cheapestReason(cheapest, fastest)
         : journeys.length

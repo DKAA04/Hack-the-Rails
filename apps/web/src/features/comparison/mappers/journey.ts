@@ -397,7 +397,59 @@ export function toPriceView(price: Price): PriceView {
   };
 }
 
-function summarise(it: Itinerary) {
+/**
+ * Sources sometimes emit zero-length connector legs (a 0-minute "walk" from a
+ * stop to itself). Those split one real change into two confusing ones, so we
+ * drop them and merge the surrounding transfers. Real walks are kept.
+ */
+export function collapseTrivialConnectors(it: Itinerary): Itinerary {
+  const trivial = new Set(
+    it.legs
+      .filter(
+        (l) =>
+          CONNECTIVE.includes(l.mode) &&
+          l.origin.id === l.destination.id &&
+          Date.parse(l.arrivalUtc) - Date.parse(l.departureUtc) <= 60_000,
+      )
+      .map((l) => l.id),
+  );
+  if (!trivial.size || trivial.size === it.legs.length) return it;
+  const legs = it.legs.filter((l) => !trivial.has(l.id));
+  const transfers: Transfer[] = [];
+  for (let i = 0; i < legs.length - 1; i++) {
+    const from = legs[i]!;
+    const to = legs[i + 1]!;
+    // Walk the original chain from `from` to `to`, folding transfers together.
+    const chain: Transfer[] = [];
+    let cursor = from.id;
+    for (let guard = 0; guard < it.transfers.length + 1; guard++) {
+      const t = it.transfers.find((x) => x.fromLegId === cursor);
+      if (!t) break;
+      chain.push(t);
+      if (t.toLegId === to.id) break;
+      cursor = t.toLegId;
+    }
+    if (!chain.length || chain[chain.length - 1]!.toLegId !== to.id) continue;
+    const order = { incompatible: 0, unverified: 1, verified: 2 } as const;
+    const prot = { self_transfer: 0, unknown: 1, protected: 2 } as const;
+    transfers.push({
+      fromLegId: from.id,
+      toLegId: to.id,
+      durationMinutes: Math.max(0, Math.round((Date.parse(to.departureUtc) - Date.parse(from.arrivalUtc)) / 60_000)),
+      minimumMinutes: chain.every((t) => t.minimumMinutes !== null)
+        ? Math.max(...chain.map((t) => t.minimumMinutes!))
+        : null,
+      protection: chain.reduce((a, t) => (prot[t.protection] < prot[a] ? t.protection : a), chain[0]!.protection),
+      changeLocation: chain.some((t) => t.changeLocation),
+      instructions: chain.map((t) => t.instructions).filter(Boolean).join(" ") || null,
+      compatibility: chain.reduce((a, t) => (order[t.compatibility] < order[a] ? t.compatibility : a), chain[0]!.compatibility),
+    });
+  }
+  return { ...it, legs, transfers };
+}
+
+function summarise(raw: Itinerary) {
+  const it = collapseTrivialConnectors(raw);
   const legs = it.legs.map(toLeg);
   const first = legs[0]!;
   const last = legs[legs.length - 1]!;

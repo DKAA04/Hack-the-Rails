@@ -21,7 +21,7 @@ import { PassengerEditor, passengerSummary } from "./passenger-editor";
 import { PlaceCombobox, SourceList } from "./place-combobox";
 import type { CapabilitiesState } from "./use-capabilities";
 
-const STORAGE_KEY = "wayward.search.v1";
+import { LAST_SEARCH_KEY as STORAGE_KEY } from "./rerun";
 
 const FIELD_LABEL: Record<string, string> = {
   origin: "From",
