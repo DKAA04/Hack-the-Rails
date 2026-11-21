@@ -167,6 +167,8 @@ export interface JourneyView {
   missingConnections: string[];
   bookable: boolean;
   notBookableReason: string | null;
+  /** Supplier sandbox inventory: bookable only in test checkout, never real travel. */
+  testInventory: boolean;
   bookingRequirements: BookingRequirementsView | null;
 }
 
@@ -518,11 +520,16 @@ function baggageFrom(services: Offer["includedServices"]): BaggageView {
   return { cabin: count("cabin_bag"), checked: count("checked_bag") };
 }
 
+/**
+ * Live offers book in live checkout; supplier test offers book only in the
+ * matching test checkout (checked again per order by the backend). Everything
+ * else (indicative, historical, ranges, unknown) is never bookable.
+ */
 function bookability(offer: Offer): string | null {
-  if (offer.environment === "test")
-    return "Test-environment offer: it can't be booked for real travel.";
-  if (offer.price.kind !== "live_offer")
-    return "Not a live price, so it can't be booked.";
+  const matching =
+    (offer.price.kind === "live_offer" && offer.environment === "live") ||
+    (offer.price.kind === "test_offer" && offer.environment === "test");
+  if (!matching || !("completeness" in offer.price)) return "Not a seller's current offer, so it can't be booked.";
   if (offer.price.completeness !== "complete")
     return "The total is incomplete, so it can't be booked yet.";
   if (offer.availability !== "available")
@@ -560,6 +567,7 @@ export function toOfferJourney(offer: Offer, searchId: string): JourneyView {
     freshness: offer.freshness,
     bookable: reason === null,
     notBookableReason: reason,
+    testInventory: offer.environment === "test",
     bookingRequirements: offer.bookingRequirements
       ? {
           holdSupported: offer.bookingRequirements.holdSupported,
@@ -601,6 +609,7 @@ export function toTimetableJourney(
     bookable: false,
     notBookableReason:
       "Timetable only. No seller has offered seats or a price for this journey.",
+    testInventory: false,
     bookingRequirements: null,
   };
 }

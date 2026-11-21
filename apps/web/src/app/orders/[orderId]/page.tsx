@@ -8,8 +8,14 @@ export default async function OrderRoute({
   searchParams,
 }: {
   params: Promise<{ orderId: string }>;
-  searchParams: Promise<{ sample?: string }>;
+  searchParams: Promise<{ sample?: string; checkout?: string }>;
 }) {
-  const [{ orderId }, { sample }] = await Promise.all([params, searchParams]);
-  return <OrderPage orderId={decodeURIComponent(orderId)} sample={orderId === "sample" ? (sample ?? "confirmed") : null} />;
+  const [{ orderId }, { sample, checkout }] = await Promise.all([params, searchParams]);
+  return (
+    <OrderPage
+      orderId={decodeURIComponent(orderId)}
+      sample={orderId === "sample" ? (sample ?? "confirmed") : null}
+      checkoutReturn={checkout === "returned" || checkout === "cancelled" ? checkout : null}
+    />
+  );
 }

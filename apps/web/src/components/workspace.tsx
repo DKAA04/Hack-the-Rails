@@ -1,5 +1,7 @@
 "use client";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { useEffect } from "react";
 import { SearchForm } from "../features/search/search-form";
 import { useCapabilities } from "../features/search/use-capabilities";
 import { providerLabel } from "../features/comparison/mappers/journey";
@@ -21,6 +23,16 @@ const SEARCH_TONE: Record<string, { label: string; tone: Tone }> = {
 export function Workspace() {
   const { state, retry } = useCapabilities();
   const { items, ready } = useTrip();
+  const router = useRouter();
+  // Stripe returns to /?order=<id>&checkout=returned|cancelled. Hand off to the
+  // order page, which reconciles with the payment provider and seller.
+  useEffect(() => {
+    const q = new URLSearchParams(window.location.search);
+    const order = q.get("order");
+    const checkout = q.get("checkout");
+    if (order && (checkout === "returned" || checkout === "cancelled"))
+      router.replace(`/orders/${encodeURIComponent(order)}?checkout=${checkout}`);
+  }, [router]);
 
   return (
     <>
@@ -114,8 +126,12 @@ export function Workspace() {
               <li className="flex flex-wrap items-center gap-x-4 gap-y-1 p-4">
                 <span className="w-36 font-semibold">Payments</span>
                 <span className="flex-1 text-body-sm text-text-muted">Checkout and tickets</span>
-                <Badge tone={state.data.paymentsConnected ? "ok" : "neutral"}>
-                  {state.data.paymentsConnected ? "Available" : "Not available yet"}
+                <Badge tone={state.data.paymentsConnected && state.data.paymentVerified ? (state.data.paymentEnvironment === "test" ? "warn" : "ok") : "neutral"}>
+                  {state.data.paymentsConnected && state.data.paymentVerified
+                    ? state.data.paymentEnvironment === "test"
+                      ? "Test mode, per order"
+                      : "Per order"
+                    : "Not available yet"}
                 </Badge>
               </li>
             </ul>

@@ -112,7 +112,7 @@ export const api = {
     request("/orders", OrderSchema, CreateOrderRequestSchema.parse(input)),
   getOrder: (id: string) =>
     request(`/orders/${encodeURIComponent(id)}`, OrderSchema),
-  /** Published contract; backend implementation pending (expect 501/404). */
+  /** Implemented by backend d65cb07; a 501 still renders "not available yet". */
   updateTravellers: (orderId: string, input: UpdateTravellersRequest) =>
     request(
       `/orders/${encodeURIComponent(orderId)}/travellers`,
@@ -121,16 +121,17 @@ export const api = {
       undefined,
       "PUT",
     ),
-  /** Published contract; backend implementation pending (expect 501/404). */
+  /** Implemented by backend d65cb07; a 501 still renders "not available yet". */
   reserve: (orderId: string, input: ReserveOrderRequest) =>
     request(
       `/orders/${encodeURIComponent(orderId)}/reserve`,
       OrderSchema,
       ReserveOrderRequestSchema.parse(input),
     ),
-  /** Published contract; backend implementation pending (expect 501/404). */
+  /** Implemented by backend d65cb07; a 501 still renders "not available yet". */
+  /** Session-protected; no body. May advance an authorised test transaction. */
   reconcile: (orderId: string) =>
-    request(`/orders/${encodeURIComponent(orderId)}/reconcile`, OrderSchema, {}),
+    request(`/orders/${encodeURIComponent(orderId)}/reconcile`, OrderSchema, undefined, undefined, "POST"),
   checkout: (input: CheckoutRequest) =>
     request(
       "/payments/checkout",

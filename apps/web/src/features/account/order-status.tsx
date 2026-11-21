@@ -70,36 +70,32 @@ export function OrderStatus({ order, sample = false }: { order: OrderView; sampl
               <p className="mt-1 text-body-sm text-text-muted">
                 Seller payment: {b.settlementLabel.toLowerCase()} · Tickets: {b.fulfilmentLabel.toLowerCase()}
               </p>
-              {b.supplierDocuments.length ? (
-                <div className="mt-4">
-                  <h3 className="text-label">Seller documents</h3>
-                  <ul className="mt-2 divide-y divide-line rounded-md border border-line">
-                    {b.supplierDocuments.map((d) => (
-                      <li key={d.id} className="flex flex-wrap items-center justify-between gap-3 p-3">
-                        <span>
+              <h3 className="mt-4 text-label">Tickets and references</h3>
+              {b.tickets.length || b.supplierDocuments.length ? (
+                <ul className="mt-2 divide-y divide-line rounded-md border border-line">
+                  {b.supplierDocuments.map((d) => (
+                    <li key={d.id} className="flex flex-wrap items-center justify-between gap-3 p-3">
+                      <span className="flex min-w-0 items-start gap-2">
+                        <Icon name="ticket" size={18} className="mt-0.5 shrink-0 text-text-muted" />
+                        <span className="min-w-0">
                           <span className="font-semibold">{d.typeLabel}</span>
-                          <span className="tnum ml-2 rounded-sm bg-paper px-1.5 py-0.5 font-mono text-body-sm">{d.reference}</span>
+                          <span className="tnum ml-2 rounded-sm bg-paper px-1.5 py-0.5 font-mono text-body-sm [overflow-wrap:anywhere]">{d.reference}</span>
                           <span className="block text-caption text-text-muted">
-                            {d.issuedAt ? `Issued ${formatDateTime(d.issuedAt)}` : "Issue time not given by the seller"}
-                            {d.travellerCount ? ` · ${d.travellerCount} ${d.travellerCount === 1 ? "traveller" : "travellers"}` : ""}
+                            {d.issuedAt ? `Issued ${formatDateTime(d.issuedAt)}` : "The seller didn't give an issue time"}
+                            {d.travellerCount ? ` · covers ${d.travellerCount} ${d.travellerCount === 1 ? "traveller" : "travellers"}` : ""}
                           </span>
                         </span>
-                        {d.downloadUrl && !sample ? (
-                          <a href={d.downloadUrl} className="inline-flex min-h-11 items-center gap-1 text-body-sm font-semibold underline">
-                            <Icon name="download" size={16} />
-                            Download
-                          </a>
-                        ) : (
-                          <span className="text-caption text-text-muted">No file from the seller. Use the reference.</span>
-                        )}
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              ) : null}
-              <h3 className="mt-4 text-label">Tickets</h3>
-              {b.tickets.length ? (
-                <ul className="mt-2 divide-y divide-line rounded-md border border-line">
+                      </span>
+                      {d.downloadUrl && !sample ? (
+                        <a href={d.downloadUrl} className="inline-flex min-h-11 items-center gap-1 text-body-sm font-semibold underline">
+                          <Icon name="download" size={16} />
+                          Download
+                        </a>
+                      ) : (
+                        <span className="text-caption text-text-muted">No PDF from the seller. Use this reference.</span>
+                      )}
+                    </li>
+                  ))}
                   {b.tickets.map((t) => (
                     <li key={t.id} className="flex flex-wrap items-center justify-between gap-3 p-3">
                       <span className="flex items-center gap-2">
@@ -126,11 +122,17 @@ export function OrderStatus({ order, sample = false }: { order: OrderView; sampl
                 </ul>
               ) : (
                 <p className="mt-2 rounded-md bg-paper p-3 text-body-sm text-text-muted">
-                  {order.workflow?.terminal && order.workflow.phase !== "complete"
+                  {b.fulfilmentLabel === "Ticketing failed" || (order.workflow?.terminal && order.workflow.phase !== "complete")
                     ? "No tickets were issued for this booking."
-                    : `No tickets yet. They appear here only once ${b.providerLabel} actually issues them.`}
+                    : `No tickets yet. They appear here once ${b.providerLabel} returns them.`}
                 </p>
               )}
+              {b.supplierDocuments.length && b.fulfilmentLabel !== "All tickets issued" ? (
+                <p className="mt-2 text-caption text-text-muted">
+                  The seller has returned {b.supplierDocuments.length === 1 ? "a reference" : "references"}, but hasn&apos;t marked
+                  ticketing complete for every traveller yet.
+                </p>
+              ) : null}
               <p className="mt-3 text-caption text-text-muted">
                 Refund: {AFTERSALE[b.aftersales.refund] ?? "Unknown"} · Change: {AFTERSALE[b.aftersales.exchange] ?? "Unknown"} · Cancel: {AFTERSALE[b.aftersales.cancellation] ?? "Unknown"}
               </p>

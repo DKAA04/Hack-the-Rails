@@ -21,6 +21,9 @@ export interface CapabilitiesView {
   naturalLanguageConnected: boolean;
   payments: CapabilityState;
   paymentsConnected: boolean;
+  /** Real account probe result; "test" means per-order test checkout only. */
+  paymentEnvironment: "test" | "live" | "unknown" | null;
+  paymentVerified: boolean;
   providers: {
     id: string;
     modes: Mode[];
@@ -70,6 +73,8 @@ export function toCapabilitiesView(c: Capabilities): CapabilitiesView {
     naturalLanguageConnected: c.naturalLanguage === "available",
     payments: c.payments,
     paymentsConnected: c.payments === "available",
+    paymentEnvironment: c.paymentProvider?.environment ?? null,
+    paymentVerified: c.paymentProvider?.connectivity === "verified",
     providers,
     modes,
   };

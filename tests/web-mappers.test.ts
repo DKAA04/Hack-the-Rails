@@ -324,3 +324,23 @@ test("traveller details never reach browser storage, URLs or logs", () => {
   // Documents are never put in a URL.
   assert.equal(/uniqueIdentifier[^\n]*(searchParams|URLSearchParams|\?)/.test(mapper), false);
 });
+
+test("test offers are bookable only as labelled test inventory; non-offers never", () => {
+  const live = offer("live1", { amount: 1000, dep: "2026-11-22T06:00:00Z", arr: "2026-11-22T07:00:00Z" });
+  const test = { ...live, id: "t1", environment: "test" as const, price: { ...(live.price as Extract<Offer["price"], { kind: "live_offer" }>), kind: "test_offer" as const } };
+  const tj = toOfferJourney(test, "s");
+  assert.equal(tj.bookable, true);
+  assert.equal(tj.testInventory, true);
+  assert.equal(toOfferJourney(live, "s").testInventory, false);
+  const indicative = { ...live, id: "i1", price: { ...(live.price as Extract<Offer["price"], { kind: "live_offer" }>), kind: "indicative" as const } };
+  assert.equal(toOfferJourney(indicative, "s").bookable, false);
+  const mismatched = { ...test, environment: "live" as const };
+  assert.equal(toOfferJourney(mismatched, "s").bookable, false);
+});
+
+test("checkout readiness comes from workflow.checkoutReady, not a global flag", async () => {
+  const m = await import("../apps/web/src/features/checkout/mappers/order");
+  const v = m.toWorkflowView({ phase: "ready_for_checkout", nextAction: "checkout", checkoutReady: true, reasons: [], retryAfterMs: null, paymentRequiredBy: null, priceGuaranteeExpiresAt: null });
+  assert.equal(v.checkoutReady, true);
+  assert.equal(v.pollMs, null);
+});

@@ -26,6 +26,9 @@ export function OrderWorkflowPanel({
   pollMs,
   lastChecked,
   travellerAction,
+  syncing = false,
+  syncError,
+  onCheckAgain,
 }: {
   order: OrderView;
   onAction?: (a: NextAction) => void;
@@ -36,6 +39,9 @@ export function OrderWorkflowPanel({
   lastChecked: number | null;
   /** Override for provide_travellers when this screen holds no traveller data. */
   travellerAction?: ReactNode;
+  syncing?: boolean;
+  syncError?: ErrorView | null;
+  onCheckAgain?: () => void;
 }) {
   const w = order.workflow;
   if (!w)
@@ -46,7 +52,18 @@ export function OrderWorkflowPanel({
     );
 
   const exception = w.progressIndex === -1;
-  const label = ACTION_LABEL[w.nextAction];
+  // Purchase readiness is per order (workflow.checkoutReady), never a global flag.
+  const action: NextAction | null = w.checkoutReady
+    ? "checkout"
+    : w.nextAction === "checkout"
+      ? null
+      : w.nextAction;
+  const label =
+    action === "checkout" && order.environment === "test"
+      ? "Continue to test payment"
+      : action
+        ? ACTION_LABEL[action]
+        : undefined;
 
   return (
     <section aria-labelledby="workflow-title" className="rounded-lg border border-line bg-surface p-4 sm:p-6">
@@ -116,12 +133,43 @@ export function OrderWorkflowPanel({
               Back to trip
             </ButtonLink>
           </div>
-        ) : w.nextAction === "provide_travellers" && travellerAction ? (
+        ) : action === "provide_travellers" && travellerAction ? (
           travellerAction
-        ) : label && onAction ? (
-          <Button onClick={() => onAction(w.nextAction)} loading={busy} disabled={busy} iconAfter="arrow-right">
-            {label}
-          </Button>
+        ) : label && action && onAction ? (
+          <div>
+            <Button onClick={() => onAction(action)} loading={busy} disabled={busy} iconAfter="arrow-right">
+              {label}
+            </Button>
+            {action === "checkout" ? (
+              <p className="mt-2 text-caption text-text-muted">
+                {order.environment === "test"
+                  ? "Stripe test mode: use a Stripe test card. No real money moves. Your card is authorised, and only taken once the seller issues tickets."
+                  : "Your card is authorised first and only taken once the seller issues tickets."}
+              </p>
+            ) : null}
+          </div>
+        ) : w.nextAction === "checkout" && !w.checkoutReady ? (
+          <p className="text-body-sm text-text-muted">Payment opens once the seller&apos;s hold and every check are confirmed.</p>
+        ) : null}
+        {syncing && w.nextAction !== "poll" ? (
+          <p className="mt-3 text-body-sm text-text-muted">Checking with the payment provider and seller…</p>
+        ) : null}
+        {syncError ? (
+          <Notice
+            tone={syncError.kind === "not_implemented" ? "info" : "danger"}
+            role="alert"
+            title={syncError.kind === "not_implemented" ? "Status checks aren't available yet" : "We couldn't update this order"}
+            className="mt-3"
+            action={
+              onCheckAgain ? (
+                <Button variant="ghost" size="sm" icon="refresh" onClick={onCheckAgain} loading={syncing} disabled={syncing}>
+                  Check again
+                </Button>
+              ) : null
+            }
+          >
+            {syncError.message} Automatic checks have stopped so nothing runs twice.
+          </Notice>
         ) : null}
         {actionError ? (
           <Notice

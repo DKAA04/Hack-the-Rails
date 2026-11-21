@@ -9,7 +9,6 @@ import type { JourneyView } from "../comparison/mappers/journey";
 import { OrderStatus } from "../account/order-status";
 import { OrderWorkflowPanel } from "../account/order-workflow";
 import { useOrder } from "../account/use-order";
-import { newKey } from "../search/mappers/intent";
 import { lastSearchFor } from "../search/rerun";
 import { tripTotal } from "../trip/conflicts";
 import { useTrip } from "../trip/store";
@@ -29,6 +28,7 @@ import {
   type QuoteView,
   type TravellerDraft,
 } from "./mappers/order";
+import { idempotencyKeyFor } from "./idempotency";
 import { PaymentSlot, type PaymentSlotState } from "./payment-slot";
 
 export const LOCAL_ORDERS_KEY = "wayward.orders.v1";
@@ -56,7 +56,6 @@ export function CheckoutView() {
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [phase, setPhase] = useState<Phase>({ kind: "form" });
   const [accepted, setAccepted] = useState(false);
-  const idempotencyKey = useRef(newKey());
   const summaryRef = useRef<HTMLDivElement>(null);
   const [failedSubmits, setFailedSubmits] = useState(0);
   useEffect(() => {
@@ -159,7 +158,8 @@ export function CheckoutView() {
       const order = await api.createOrder(
         toCreateOrderRequest({
           quoteId: quote.quoteId,
-          idempotencyKey: idempotencyKey.current,
+          // Same quote = same logical order: retries reuse the key.
+          idempotencyKey: idempotencyKeyFor("create", quote.quoteId),
           travellers,
           contact,
           travelDateIso: travelDate,
@@ -194,6 +194,13 @@ export function CheckoutView() {
                 <ReviewRow key={j.id} j={j} />
               ))}
             </ul>
+            {bookable.some((j) => j.testInventory) ? (
+              <Notice tone="warn" title="Test booking" className="mt-4">
+                {bookable.every((j) => j.testInventory)
+                  ? "These are the seller's sandbox offers. Booking runs end to end in test mode with Stripe test payments: no real ticket is issued and no real money moves."
+                  : "Some offers are sandbox test inventory and some are live. Test and live offers can't be booked together."}
+              </Notice>
+            ) : null}
             {planOnly ? (
               <p className="mt-3 text-body-sm text-text-muted">
                 {plural(planOnly, "other journey")} in your trip can&apos;t be booked here and stay in your plan.
@@ -207,10 +214,7 @@ export function CheckoutView() {
               travellers={travellers ?? []}
               contact={contact}
               policy={policy}
-              onRecheck={() => {
-                idempotencyKey.current = newKey();
-                setPhase({ kind: "form" });
-              }}
+              onRecheck={() => setPhase({ kind: "form" })}
             />
           ) : (
             <>
@@ -359,7 +363,7 @@ function CheckoutOrder({
   policy: DocumentPolicy;
   onRecheck: () => void;
 }) {
-  const { load, setOrder, polling, pollMs, lastChecked } = useOrder(initial.id, initial);
+  const { load, setOrder, polling, pollMs, lastChecked, syncing, syncError, reconcile } = useOrder(initial.id, initial);
   const [busy, setBusy] = useState(false);
   const [actionError, setActionError] = useState<ErrorView | null>(null);
   const [payment, setPayment] = useState<PaymentSlotState>({ kind: "waiting" });
@@ -371,10 +375,12 @@ function CheckoutOrder({
     try {
       if (a === "provide_travellers")
         setOrder(toOrderView(await api.updateTravellers(order.id, toUpdateTravellersRequest(travellers, contact, policy))));
-      else if (a === "reserve") setOrder(toOrderView(await api.reserve(order.id, { idempotencyKey: newKey() })));
+      else if (a === "reserve")
+        setOrder(toOrderView(await api.reserve(order.id, { idempotencyKey: idempotencyKeyFor("reserve", order.id) })));
       else if (a === "checkout") {
-        const s = await api.checkout({ orderId: order.id, idempotencyKey: newKey() });
+        const s = await api.checkout({ orderId: order.id, idempotencyKey: idempotencyKeyFor("checkout", order.id) });
         setPayment({ kind: "redirect", url: s.redirectUrl });
+        window.location.assign(s.redirectUrl);
       } else if (a === "accept_changes") onRecheck();
     } catch (e) {
       const err = a === "checkout" ? toErrorView(e) : toPendingEndpointErrorView(e);
@@ -395,6 +401,9 @@ function CheckoutOrder({
         polling={polling}
         pollMs={pollMs}
         lastChecked={lastChecked}
+        syncing={syncing}
+        syncError={syncError}
+        onCheckAgain={() => void reconcile()}
       />
       <section aria-labelledby="payment-title" className="rounded-lg border border-line bg-surface p-4 sm:p-6">
         <h2 id="payment-title" className="text-title">

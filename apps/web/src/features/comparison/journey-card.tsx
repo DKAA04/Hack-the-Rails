@@ -118,7 +118,7 @@ export function JourneyCard({
               <Badge tone="warn">Self-transfer</Badge>
             ) : null}
             {j.completeness === "partial" ? <Badge tone="warn">Partial route</Badge> : null}
-            {j.environment === "test" ? <Badge tone="warn">Test environment</Badge> : null}
+            {j.environment === "test" ? <Badge tone="warn" icon="info">Test booking · no real ticket</Badge> : null}
             {j.freshness?.state === "stale" || j.freshness?.state === "expired" ? (
               <Badge tone={j.freshness.state === "expired" ? "danger" : "warn"}>
                 {j.freshness.state === "expired" ? "Offer expired" : "Price may be stale"}

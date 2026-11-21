@@ -6,7 +6,7 @@ import { api } from "../../lib/api-client";
 import { toErrorView, toPendingEndpointErrorView, type ErrorView } from "../common/mappers/errors";
 import { toOrderView, type NextAction } from "../checkout/mappers/order";
 import { PaymentSlot, type PaymentSlotState } from "../checkout/payment-slot";
-import { newKey } from "../search/mappers/intent";
+import { idempotencyKeyFor } from "../checkout/idempotency";
 import { sampleOrderView, SAMPLE_ORDERS, type SampleOrderKey } from "./mappers/sample-orders.fixture";
 import { OrderStatus } from "./order-status";
 import { OrderWorkflowPanel } from "./order-workflow";
@@ -21,10 +21,18 @@ const SAMPLE_LABEL: Record<SampleOrderKey, string> = {
   cancelled: "Expired",
 };
 
-export function OrderPage({ orderId, sample }: { orderId: string; sample: string | null }) {
+export function OrderPage({
+  orderId,
+  sample,
+  checkoutReturn = null,
+}: {
+  orderId: string;
+  sample: string | null;
+  checkoutReturn?: "returned" | "cancelled" | null;
+}) {
   const sampleKey = sample && sample in SAMPLE_ORDERS ? (sample as SampleOrderKey) : null;
   if (sampleKey) return <SampleOrder sampleKey={sampleKey} />;
-  return <LiveOrder orderId={orderId} />;
+  return <LiveOrder orderId={orderId} checkoutReturn={checkoutReturn} />;
 }
 
 function SampleOrder({ sampleKey }: { sampleKey: SampleOrderKey }) {
@@ -60,8 +68,11 @@ function SampleOrder({ sampleKey }: { sampleKey: SampleOrderKey }) {
   );
 }
 
-function LiveOrder({ orderId }: { orderId: string }) {
-  const { load, refresh, setOrder, polling, pollMs, lastChecked } = useOrder(orderId);
+function LiveOrder({ orderId, checkoutReturn }: { orderId: string; checkoutReturn: "returned" | "cancelled" | null }) {
+  // Returning from Checkout: reconcile first (POST /reconcile, then GET).
+  const { load, refresh, reconcile, setOrder, polling, pollMs, lastChecked, syncing, syncError } = useOrder(orderId, undefined, {
+    reconcileOnLoad: checkoutReturn !== null,
+  });
   const [busy, setBusy] = useState(false);
   const [actionError, setActionError] = useState<ErrorView | null>(null);
   const [payment, setPayment] = useState<PaymentSlotState | null>(null);
@@ -71,10 +82,11 @@ function LiveOrder({ orderId }: { orderId: string }) {
     setBusy(true);
     setActionError(null);
     try {
-      if (a === "reserve") setOrder(toOrderView(await api.reserve(orderId, { idempotencyKey: newKey() })));
+      if (a === "reserve") setOrder(toOrderView(await api.reserve(orderId, { idempotencyKey: idempotencyKeyFor("reserve", orderId) })));
       else if (a === "checkout") {
-        const s = await api.checkout({ orderId, idempotencyKey: newKey() });
+        const s = await api.checkout({ orderId, idempotencyKey: idempotencyKeyFor("checkout", orderId) });
         setPayment({ kind: "redirect", url: s.redirectUrl });
+        window.location.assign(s.redirectUrl);
       }
     } catch (e) {
       const err = a === "reserve" ? toPendingEndpointErrorView(e) : toErrorView(e);
@@ -88,6 +100,15 @@ function LiveOrder({ orderId }: { orderId: string }) {
   return (
     <>
       <PageHeader title="Order status" description={`Order reference ${orderId}`} />
+      {checkoutReturn === "cancelled" ? (
+        <Notice tone="neutral" title="Payment cancelled" className="mb-6">
+          You left the payment page without paying, so nothing was charged. The seller&apos;s hold stays until its deadline.
+        </Notice>
+      ) : checkoutReturn === "returned" ? (
+        <p className="mb-6 text-body-sm text-text-muted" role="status">
+          Back from payment. We&apos;re checking the result with the payment provider and the seller.
+        </p>
+      ) : null}
       <div aria-busy={load.status === "loading"}>
         {load.status === "loading" || load.status === "idle" ? (
           <div className="space-y-4" aria-label="Loading order">
@@ -104,6 +125,9 @@ function LiveOrder({ orderId }: { orderId: string }) {
               polling={polling}
               pollMs={pollMs}
               lastChecked={lastChecked}
+              syncing={syncing}
+              syncError={syncError}
+              onCheckAgain={() => void reconcile()}
               travellerAction={
                 <Notice tone="info" title="Traveller details are needed">
                   For privacy, traveller details are never saved in your browser, so they need to be entered again from
