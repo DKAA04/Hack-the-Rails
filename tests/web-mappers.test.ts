@@ -350,3 +350,22 @@ test("checkout readiness comes from workflow.checkoutReady, not a global flag", 
   assert.equal(v.checkoutReady, true);
   assert.equal(v.pollMs, null);
 });
+
+test("seller fare rules embedded in conditions.summary become plain rules; money stays integer", async () => {
+  const { parseConditionsSummary, decimalToMinor } = await import("../apps/web/src/features/comparison/mappers/journey");
+  const { sellerRulesLine } = await import("../apps/web/src/features/comparison/fare-rules");
+  assert.equal(decimalToMinor("10.00", "EUR"), 1000);
+  assert.equal(decimalToMinor("10.5", "EUR"), 1050);
+  assert.equal(decimalToMinor("1500", "JPY"), 1500);
+  assert.equal(decimalToMinor("abc", "EUR"), null);
+  const summary =
+    'Airline: Duffel Airways. Supplier fare rules: {"refund_before_departure":{"allowed":false,"penalty_amount":null,"penalty_currency":null},"change_before_departure":{"allowed":true,"penalty_amount":"10.00","penalty_currency":"EUR"}}. Null penalty values are unknown, not zero.';
+  const r = parseConditionsSummary(summary);
+  assert.equal(r.sellerRules!.refundBeforeDeparture!.allowed, false);
+  assert.deepEqual(r.sellerRules!.changeBeforeDeparture!.fee, { amount: 1000, currency: "EUR" });
+  assert.equal(r.summary!.includes("{"), false);
+  assert.equal(sellerRulesLine(r.sellerRules), "Non-refundable · changes €10.00");
+  const unknownFee = parseConditionsSummary('Supplier fare rules: {"refund_before_departure":{"allowed":true,"penalty_amount":null,"penalty_currency":null}}.');
+  assert.equal(sellerRulesLine(unknownFee.sellerRules), "Refundable, fee unknown · change rules unknown");
+  assert.deepEqual(parseConditionsSummary("Supplier fare rules: {broken"), { summary: "Supplier fare rules: {broken", sellerRules: null });
+});

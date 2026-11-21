@@ -70,7 +70,7 @@ export function computePicks(journeys: JourneyView[]): Record<PickKey, Pick> {
       journey: cheapest,
       headline: cheapest ? cheapest.price.display : "No prices",
       reason: cheapest
-        ? cheapestReason(cheapest, fastest)
+        ? cheapestReason(cheapest, fastest) + refundNote(cheapest, priced)
         : journeys.length
           ? "None of these results has a complete, bookable price yet. Timetable results don't come with prices."
           : "No results yet.",
@@ -103,9 +103,21 @@ export function computePicks(journeys: JourneyView[]): Record<PickKey, Pick> {
   };
 }
 
+/** Candour about what the lowest price gives up. */
+function refundNote(c: JourneyView, priced: JourneyView[]) {
+  const refundable = (j: JourneyView) => j.conditions?.sellerRules?.refundBeforeDeparture?.allowed;
+  if (refundable(c) !== false) return "";
+  const alt = priced
+    .filter((j) => j.id !== c.id && refundable(j) === true && j.price.total?.currency === c.price.total?.currency)
+    .sort((a, b) => a.price.total!.amount - b.price.total!.amount)[0];
+  return alt
+    ? ` It's non-refundable; the cheapest refundable fare is ${alt.price.display}.`
+    : " It's non-refundable.";
+}
+
 function cheapestReason(c: JourneyView, f: JourneyView | null) {
   if (!f || f.id === c.id)
-    return "Lowest complete price, and it's also the fastest. Easy call.";
+    return "Lowest complete price, and it's also the fastest.";
   const slower = c.durationMinutes - f.durationMinutes;
   let s =
     slower > 0
