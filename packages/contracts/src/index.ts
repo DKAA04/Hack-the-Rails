@@ -5,3 +5,6 @@ export * from "./offers";
 export * from "./orders";
 export * from "./payments";
 export * from "./errors";
+export * from "./places";
+export * from "./dependencies";
+export * from "./booking";

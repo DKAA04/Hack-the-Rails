@@ -46,3 +46,11 @@ export const CheckoutResponseSchema = z.object({
   redirectUrl: z.url(),
 });
 export type CheckoutResponse = z.infer<typeof CheckoutResponseSchema>;
+
+export const StripeWebhookResponseSchema = z.object({
+  version: z.literal(1),
+  received: z.literal(true),
+  duplicate: z.boolean(),
+  ignored: z.boolean(),
+});
+export type StripeWebhookResponse = z.infer<typeof StripeWebhookResponseSchema>;

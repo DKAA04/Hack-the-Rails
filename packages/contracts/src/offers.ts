@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { OfferBookingRequirementsSchema } from "./booking";
 import { IdSchema, MoneySchema, UtcSchema } from "./common";
 import { ItinerarySchema } from "./journeys";
 import { SearchReceiptSchema } from "./search";
@@ -95,6 +96,7 @@ export const OfferSchema = z
       }),
     ),
     reservationState: z.enum(["not_reserved", "held", "unknown"]),
+    bookingRequirements: OfferBookingRequirementsSchema.optional(),
   })
   .superRefine((v, c) => {
     if (v.price.kind === "live_offer" && v.environment !== "live")
@@ -112,6 +114,28 @@ export type Offer = z.infer<typeof OfferSchema>;
 export const SearchResultSchema = SearchReceiptSchema.extend({
   offers: z.array(OfferSchema),
   warnings: z.array(z.string()),
+  timetableJourneys: z
+    .array(
+      z.object({
+        itinerary: ItinerarySchema,
+        source: z.string(),
+        attribution: z.string(),
+        price: z.object({ kind: z.literal("unknown") }),
+        availability: z.literal("unknown"),
+        bookingSupported: z.literal(false),
+      }),
+    )
+    .optional(),
+  providerStatuses: z
+    .array(
+      z.object({
+        provider: z.string(),
+        status: z.enum(["complete", "failed", "unconfigured", "unsupported"]),
+        message: z.string().nullable(),
+      }),
+    )
+    .optional(),
+  updatedAt: UtcSchema.optional(),
 });
 export type SearchResult = z.infer<typeof SearchResultSchema>;
 export const RevalidationRequestSchema = z.object({

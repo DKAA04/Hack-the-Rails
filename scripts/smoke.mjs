@@ -12,84 +12,48 @@ for (const path of ["health", "capabilities"]) {
     assert.ok(
       data.providers.every(
         (p) =>
-          p.connectivity === "not_checked" &&
-          Object.values(p.operations).every((s) => s !== "available"),
+          ["not_checked", "verified", "failed"].includes(p.connectivity) &&
+          p.operations.book !== "available",
       ),
     );
   }
 }
-const place = {
-  id: "city:paris",
-  name: "Paris",
-  kind: "city",
-  countryCode: "FR",
-  timeZone: "Europe/Paris",
-  providerIds: [],
-  coordinates: null,
-};
 const passenger = { id: "p1", age: 30, discounts: [] };
-const intent = {
-  version: 1,
-  origin: place,
-  destination: {
-    ...place,
-    id: "city:berlin",
-    name: "Berlin",
-    timeZone: "Europe/Berlin",
-  },
-  departureDate: "2026-12-01",
-  returnDate: null,
-  passengers: [passenger],
-  bags: { cabin: 1, checked: 0, bicycles: 0 },
-  modes: [
-    "flight",
-    "rail",
-    "coach",
-    "ferry",
-    "local_transit",
-    "walking",
-    "transfer",
-  ],
-  preferences: {
-    sort: "cheapest",
-    maxTransfers: null,
-    accessible: null,
-    cabin: null,
-  },
-  naturalLanguage: null,
-};
-for (const [path, body] of [
-  ["search", intent],
-  [
-    "quotes/revalidate",
-    { offerIds: ["offer:opaque"], searchId: "search:opaque" },
-  ],
-  [
-    "orders",
-    {
-      quoteId: "quote:opaque",
-      idempotencyKey: "test-key",
-      passengers: [passenger],
-      email: "test@example.com",
-    },
-  ],
-  [
-    "payments/checkout",
-    { orderId: "order:opaque", idempotencyKey: "test-key" },
-  ],
-]) {
-  const r = await fetch(`${base}/api/${path}`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(body),
-  });
-  assert.equal(r.status, 501, path);
-  assert.equal((await r.json()).error.code, "NOT_IMPLEMENTED");
+const missingId = "00000000-0000-4000-8000-000000000000";
+const missingSearch = await fetch(`${base}/api/search/${missingId}`);
+assert.equal(missingSearch.status, 404);
+const missingQuote = await fetch(`${base}/api/quotes/revalidate`, {
+  method: "POST",
+  headers: { "Content-Type": "application/json" },
+  body: JSON.stringify({ searchId: missingId, offerIds: ["missing"] }),
+});
+assert.equal(missingQuote.status, 404);
+for (const path of ["orders/missing", "payments/checkout"]) {
+  const r = await fetch(
+    `${base}/api/${path}`,
+    path.startsWith("payments")
+      ? {
+          method: "POST",
+          body: JSON.stringify({ orderId: "missing", idempotencyKey: "test" }),
+        }
+      : undefined,
+  );
+  assert.equal(r.status, 401);
 }
-for (const path of ["search/missing", "orders/missing"]) {
-  const r = await fetch(`${base}/api/${path}`);
-  assert.equal(r.status, 501);
-}
+const order = await fetch(`${base}/api/orders`, {
+  method: "POST",
+  headers: { "Content-Type": "application/json" },
+  body: JSON.stringify({
+    quoteId: missingId,
+    idempotencyKey: "test",
+    passengers: [passenger],
+    email: "unit@example.invalid",
+  }),
+});
+assert.ok([404, 503].includes(order.status));
+const deps = await fetch(`${base}/api/health/dependencies`);
+assert.equal(deps.status, 200);
+assert.equal((await deps.json()).stripe.checkoutEnabled, false);
 const invalid = await fetch(`${base}/api/search`, {
   method: "POST",
   body: "{}",
@@ -100,8 +64,8 @@ const webhook = await fetch(`${base}/api/webhooks/stripe`, {
   method: "POST",
   body: "{}",
 });
-assert.ok([501, 503].includes(webhook.status));
+assert.ok([401, 503].includes(webhook.status));
 assert.equal(webhook.ok, false);
 console.log(
-  "PASS: home, health, capability honesty, all disabled business routes, validation and webhook fail-closed.",
+  "PASS: home, health, dependency inspection, missing search/quote, protected orders/checkout, validation and webhook fail-closed.",
 );

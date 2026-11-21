@@ -72,6 +72,14 @@ export const CapabilitiesSchema = z.object({
   environment: z.enum(["development", "live"]),
   providers: z.array(ProviderCapabilitySchema),
   payments: CapabilityStatusSchema,
+  paymentProvider: z
+    .object({
+      id: z.literal("stripe"),
+      credentialsPresent: z.boolean(),
+      connectivity: z.enum(["not_checked", "verified", "failed"]),
+      environment: z.enum(["test", "live", "unknown"]),
+    })
+    .optional(),
   persistence: CapabilityStatusSchema,
   naturalLanguage: CapabilityStatusSchema,
 });
