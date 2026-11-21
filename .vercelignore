@@ -1,0 +1,9 @@
+.git/
+.vercel/
+.local/
+**/.local/**
+**/.env*
+**/node_modules/**
+**/.next/**
+**/*.tsbuildinfo
+**/*.log

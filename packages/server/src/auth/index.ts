@@ -71,7 +71,7 @@ export function customerSession(
     context: { ownerHash: hash(token) },
     cookie: valid
       ? null
-      : `wayward_session=${token}; HttpOnly; SameSite=Strict; Path=/api; Max-Age=604800${config.environment === "live" ? "; Secure" : ""}`,
+      : `wayward_session=${token}; HttpOnly; SameSite=Strict; Path=/api; Max-Age=604800${new URL(expected).protocol === "https:" ? "; Secure" : ""}`,
   };
 }
 export async function customerEndpoint(

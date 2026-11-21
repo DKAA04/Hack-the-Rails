@@ -204,7 +204,7 @@ test("only mapper modules and the API client import contracts in apps/web", () =
         continue;
       }
       if (!/\.(ts|tsx)$/.test(name)) continue;
-      const rel = relative(root, p);
+      const rel = relative(root, p).replaceAll("\\", "/");
       const src = readFileSync(p, "utf8");
       if (/@wayward\/server/.test(src)) offenders.push(`${rel} imports server`);
       const allowed = rel === "lib/api-client.ts" || /(^|\/)mappers\//.test(rel);
@@ -316,7 +316,7 @@ test("traveller details never reach browser storage, URLs or logs", () => {
   const mapper = readFileSync(join(root, "features/checkout/mappers/order.ts"), "utf8");
   assert.equal(/sessionStorage\.(get|set|remove)Item/.test(checkout + mapper), false);
   // The only localStorage write in checkout stores opaque order IDs.
-  const writes = checkout.match(/localStorage\.setItem\([^\n]*/g) ?? [];
+  const writes = checkout.match(/localStorage\.setItem\([^\r\n]*/g) ?? [];
   assert.deepEqual(writes, ["localStorage.setItem(LOCAL_ORDERS_KEY, JSON.stringify([order.id, ...ids.filter((x) => x !== order.id)]));"]);
   const walk = (dir: string): string[] =>
     readdirSync(dir).flatMap((n) => (statSync(join(dir, n)).isDirectory() ? (n === "api" ? [] : walk(join(dir, n))) : /\.tsx?$/.test(n) ? [join(dir, n)] : []));
