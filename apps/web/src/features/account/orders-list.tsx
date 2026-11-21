@@ -3,8 +3,52 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { Icon } from "../../components/icons";
-import { Button, PageHeader, SampleDataBadge } from "../../components/ui";
+import { Badge, Button, PageHeader, SampleDataBadge, Skeleton } from "../../components/ui";
+import { api } from "../../lib/api-client";
+import { formatDateTime } from "../../lib/format";
+import { toOrderView, type OrderView } from "../checkout/mappers/order";
 import { LOCAL_ORDERS_KEY } from "../checkout/checkout-view";
+
+type Summary = { status: "loading" } | { status: "ready"; order: OrderView } | { status: "unavailable" };
+
+/** One row per order this browser created; status read through the same session. */
+function OrderRow({ id }: { id: string }) {
+  const [s, setS] = useState<Summary>({ status: "loading" });
+  useEffect(() => {
+    let alive = true;
+    api
+      .getOrder(id)
+      .then((o) => alive && setS({ status: "ready", order: toOrderView(o) }))
+      .catch(() => alive && setS({ status: "unavailable" }));
+    return () => {
+      alive = false;
+    };
+  }, [id]);
+  return (
+    <Link href={`/orders/${encodeURIComponent(id)}`} className="flex items-center gap-3 py-3 no-underline hover:bg-paper">
+      <span className="min-w-0 flex-1">
+        {s.status === "ready" ? (
+          <>
+            <span className="flex flex-wrap items-center gap-2">
+              <span className="font-semibold">{s.order.workflow?.title ?? s.order.stateLabel}</span>
+              {s.order.environment === "test" ? <Badge tone="warn">Test booking</Badge> : null}
+            </span>
+            <span className="tnum block text-body-sm text-text-muted">
+              {s.order.total.display} · placed {formatDateTime(s.order.createdAt)} · payment {s.order.paymentLabel.toLowerCase()} · tickets{" "}
+              {s.order.fulfilmentLabel.toLowerCase()}
+            </span>
+          </>
+        ) : s.status === "loading" ? (
+          <Skeleton className="h-10 w-full" />
+        ) : (
+          <span className="block text-body-sm text-text-muted">This browser can&apos;t open this order any more.</span>
+        )}
+        <span className="mt-1 block font-mono text-caption text-text-subtle [overflow-wrap:anywhere]">{id}</span>
+      </span>
+      <Icon name="chevron-right" size={18} className="shrink-0" />
+    </Link>
+  );
+}
 
 export function OrdersList() {
   const router = useRouter();
@@ -30,12 +74,9 @@ export function OrdersList() {
           </h2>
           {ids === null ? null : ids.length ? (
             <ul className="mt-3 divide-y divide-line">
-              {ids.map((id) => (
+              {ids.slice(0, 10).map((id) => (
                 <li key={id}>
-                  <Link href={`/orders/${encodeURIComponent(id)}`} className="flex items-center justify-between py-3 no-underline hover:underline">
-                    <span className="tnum min-w-0 font-mono text-body-sm [overflow-wrap:anywhere]">{id}</span>
-                    <Icon name="chevron-right" size={18} />
-                  </Link>
+                  <OrderRow id={id} />
                 </li>
               ))}
             </ul>
