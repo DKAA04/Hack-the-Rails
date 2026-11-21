@@ -405,12 +405,14 @@ function CheckoutOrder({
         syncError={syncError}
         onCheckAgain={() => void reconcile()}
       />
-      <section aria-labelledby="payment-title" className="rounded-lg border border-line bg-surface p-4 sm:p-6">
-        <h2 id="payment-title" className="text-title">
-          Payment
-        </h2>
-        <PaymentSlot state={payment} />
-      </section>
+      {payment.kind !== "waiting" ? (
+        <section aria-labelledby="payment-title" className="rounded-lg border border-line bg-surface p-4 sm:p-6">
+          <h2 id="payment-title" className="text-title">
+            Payment
+          </h2>
+          <PaymentSlot state={payment} />
+        </section>
+      ) : null}
       <OrderStatus order={order} />
     </>
   );

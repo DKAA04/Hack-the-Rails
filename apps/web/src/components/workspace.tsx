@@ -1,7 +1,9 @@
 "use client";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
+import { api } from "../lib/api-client";
+import { toStorageView, type StorageView } from "../features/search/mappers/capabilities";
 import { SearchForm } from "../features/search/search-form";
 import { useCapabilities } from "../features/search/use-capabilities";
 import { providerLabel } from "../features/comparison/mappers/journey";
@@ -24,6 +26,17 @@ export function Workspace() {
   const { state, retry } = useCapabilities();
   const { items, ready } = useTrip();
   const router = useRouter();
+  const [storage, setStorage] = useState<StorageView | null>(null);
+  useEffect(() => {
+    let alive = true;
+    api
+      .dependencies()
+      .then((d) => alive && setStorage(toStorageView(d)))
+      .catch(() => alive && setStorage({ label: "Couldn't check", tone: "neutral", detail: "We couldn't check order storage." }));
+    return () => {
+      alive = false;
+    };
+  }, []);
   // Stripe returns to /?order=<id>&checkout=returned|cancelled. Hand off to the
   // order page, which reconciles with the payment provider and seller.
   useEffect(() => {
@@ -123,6 +136,13 @@ export function Workspace() {
                   </li>
                 ) : null;
               })()}
+              {storage ? (
+                <li className="flex flex-wrap items-center gap-x-4 gap-y-1 p-4">
+                  <span className="w-36 font-semibold">Order storage</span>
+                  <span className="flex-1 text-body-sm text-text-muted">{storage.detail}</span>
+                  <Badge tone={storage.tone}>{storage.label}</Badge>
+                </li>
+              ) : null}
               <li className="flex flex-wrap items-center gap-x-4 gap-y-1 p-4">
                 <span className="w-36 font-semibold">Payments</span>
                 <span className="flex-1 text-body-sm text-text-muted">Checkout and tickets</span>

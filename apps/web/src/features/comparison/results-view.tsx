@@ -177,7 +177,8 @@ export function ResultsView({ searchId }: { searchId: string }) {
       </div>
       {last ? (
         <p className="mt-2 text-caption text-text-muted">
-          Earlier and later step a whole day. Choosing a time of day isn&apos;t supported by our sources yet: timetable searches start at 08:00.
+          Earlier and later step a whole day. Choosing a time of day isn&apos;t supported by our sources yet
+          {load.status === "ready" && load.data.timetableCount ? ": timetable searches start at 08:00." : "."}
         </p>
       ) : null}
       <div id="edit-search" ref={editRef} hidden={!editing} className="mt-4">
