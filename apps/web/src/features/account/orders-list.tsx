@@ -33,7 +33,7 @@ export function OrdersList() {
               {ids.map((id) => (
                 <li key={id}>
                   <Link href={`/orders/${encodeURIComponent(id)}`} className="flex items-center justify-between py-3 no-underline hover:underline">
-                    <span className="tnum font-mono text-body-sm">{id}</span>
+                    <span className="tnum min-w-0 font-mono text-body-sm [overflow-wrap:anywhere]">{id}</span>
                     <Icon name="chevron-right" size={18} />
                   </Link>
                 </li>
