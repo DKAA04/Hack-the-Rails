@@ -117,6 +117,17 @@ export interface BaggageView {
   checked: number | null;
 }
 
+/** Supplier prerequisites. null = unknown, never "unsupported". */
+export interface BookingRequirementsView {
+  holdSupported: boolean | null;
+  priceGuaranteeExpiresAt: string | null;
+  paymentRequiredBy: string | null;
+  identityDocumentsRequired: boolean | null;
+  supportedIdentityDocuments: ("passport" | "identity_card")[];
+  /** Search passenger IDs the supplier mapped. */
+  passengerIds: string[];
+}
+
 export interface JourneyView {
   id: string;
   source: "offer" | "timetable";
@@ -156,6 +167,7 @@ export interface JourneyView {
   missingConnections: string[];
   bookable: boolean;
   notBookableReason: string | null;
+  bookingRequirements: BookingRequirementsView | null;
 }
 
 export const PROVIDER_LABEL: Record<string, string> = {
@@ -548,6 +560,18 @@ export function toOfferJourney(offer: Offer, searchId: string): JourneyView {
     freshness: offer.freshness,
     bookable: reason === null,
     notBookableReason: reason,
+    bookingRequirements: offer.bookingRequirements
+      ? {
+          holdSupported: offer.bookingRequirements.holdSupported,
+          priceGuaranteeExpiresAt: offer.bookingRequirements.priceGuaranteeExpiresAt,
+          paymentRequiredBy: offer.bookingRequirements.paymentRequiredBy,
+          identityDocumentsRequired: offer.bookingRequirements.identityDocumentsRequired,
+          supportedIdentityDocuments: offer.bookingRequirements.supportedIdentityDocuments.filter(
+            (d): d is "passport" | "identity_card" => d === "passport" || d === "identity_card",
+          ),
+          passengerIds: offer.bookingRequirements.passengerMappings.map((m) => m.passengerId),
+        }
+      : null,
   };
 }
 
@@ -577,6 +601,7 @@ export function toTimetableJourney(
     bookable: false,
     notBookableReason:
       "Timetable only. No seller has offered seats or a price for this journey.",
+    bookingRequirements: null,
   };
 }
 

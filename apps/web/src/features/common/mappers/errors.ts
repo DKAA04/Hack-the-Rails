@@ -73,3 +73,21 @@ export function toErrorView(error: unknown): ErrorView {
 export function isAbort(error: unknown) {
   return error instanceof DOMException && error.name === "AbortError";
 }
+
+/**
+ * For endpoints whose contract is published but not yet implemented: a 501,
+ * or a route that doesn't exist yet (404/405 without an ApiError body), both
+ * mean "not available yet", never success.
+ */
+export function toPendingEndpointErrorView(error: unknown): ErrorView {
+  if (error instanceof NetworkError && (error.status === 404 || error.status === 405))
+    return {
+      kind: "not_implemented",
+      title: "Not available yet",
+      message: "This step isn't connected yet. Nothing was changed.",
+      retryable: false,
+      requestId: null,
+      code: null,
+    };
+  return toErrorView(error);
+}

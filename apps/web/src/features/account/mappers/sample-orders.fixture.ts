@@ -25,13 +25,30 @@ const base: Omit<Order, "state" | "payment" | "fulfillment" | "bookings"> = {
 
 const aftersales = { refund: "unknown", exchange: "supported", cancellation: "unknown" } as const;
 
-export const SAMPLE_ORDERS: Record<"pending" | "confirmed" | "failed" | "cancelled", Order> = {
+const wf = (
+  phase: NonNullable<Order["workflow"]>["phase"],
+  nextAction: NonNullable<Order["workflow"]>["nextAction"],
+  extra: Partial<NonNullable<Order["workflow"]>> = {},
+): NonNullable<Order["workflow"]> => ({
+  phase,
+  nextAction,
+  checkoutReady: false,
+  reasons: [],
+  retryAfterMs: null,
+  paymentRequiredBy: null,
+  priceGuaranteeExpiresAt: null,
+  ...extra,
+});
+
+export const SAMPLE_ORDERS: Record<"pending" | "reserved" | "confirmed" | "review" | "failed" | "cancelled", Order> = {
   pending: OrderSchema.parse({
     ...base,
     id: "sample-pending",
     state: "pending",
+    environment: "test",
     payment: "authorized",
     fulfillment: "pending",
+    workflow: wf("fulfilling", "poll", { retryAfterMs: 5000 }),
     bookings: [
       { id: "b1", provider: "duffel", providerBookingId: null, offerIds: ["o1"], state: "pending", settlement: "not_started", fulfillment: "pending", tickets: [], aftersales },
     ],
@@ -40,8 +57,10 @@ export const SAMPLE_ORDERS: Record<"pending" | "confirmed" | "failed" | "cancell
     ...base,
     id: "sample-confirmed",
     state: "confirmed",
+    environment: "test",
     payment: "captured",
     fulfillment: "fulfilled",
+    workflow: wf("complete", "none"),
     bookings: [
       {
         id: "b1",
@@ -55,14 +74,47 @@ export const SAMPLE_ORDERS: Record<"pending" | "confirmed" | "failed" | "cancell
           { id: "t1", supplierBookingId: "b1", type: "reference", downloadUrl: null, reference: "SAMPLE1", issuedAt: "2026-11-21T09:32:00Z" },
           { id: "t2", supplierBookingId: "b1", type: "pdf", downloadUrl: "https://example.com/sample-ticket.pdf", reference: null, issuedAt: "2026-11-21T09:32:00Z" },
         ],
+        supplierDocuments: [
+          { id: "d1", documentType: "electronic_ticket", reference: "SAMPLE-0012345678", downloadUrl: null, issuedAt: null, observedAt: "2026-11-21T09:33:00Z", passengerProviderIds: ["pas_1"] },
+        ],
         aftersales,
       },
+    ],
+  }),
+  reserved: OrderSchema.parse({
+    ...base,
+    id: "sample-reserved",
+    state: "pending",
+    environment: "test",
+    payment: "not_started",
+    fulfillment: "not_started",
+    workflow: wf("ready_for_checkout", "checkout", {
+      checkoutReady: true,
+      paymentRequiredBy: "2026-11-22T09:30:00Z",
+      priceGuaranteeExpiresAt: "2026-11-21T21:30:00Z",
+    }),
+    bookings: [
+      { id: "b1", provider: "duffel", providerBookingId: "SAMPLE-HOLD", offerIds: ["o1"], state: "reserved", settlement: "not_started", fulfillment: "not_started", tickets: [], aftersales },
+    ],
+  }),
+  review: OrderSchema.parse({
+    ...base,
+    id: "sample-review",
+    state: "pending",
+    environment: "test",
+    payment: "authorized",
+    fulfillment: "not_started",
+    workflow: wf("manual_review", "contact_support", { reasons: ["The seller's response didn't match the reserved price."] }),
+    bookings: [
+      { id: "b1", provider: "duffel", providerBookingId: null, offerIds: ["o1"], state: "unknown", settlement: "not_started", fulfillment: "not_started", tickets: [], aftersales },
     ],
   }),
   failed: OrderSchema.parse({
     ...base,
     id: "sample-failed",
     state: "failed",
+    environment: "test",
+    workflow: wf("failed", "none", { reasons: ["The seller rejected the reservation."] }),
     payment: "refunded",
     fulfillment: "failed",
     bookings: [
@@ -73,6 +125,8 @@ export const SAMPLE_ORDERS: Record<"pending" | "confirmed" | "failed" | "cancell
     ...base,
     id: "sample-cancelled",
     state: "cancelled",
+    environment: "test",
+    workflow: wf("expired", "none"),
     payment: "refunded",
     fulfillment: "not_started",
     bookings: [

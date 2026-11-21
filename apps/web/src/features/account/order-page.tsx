@@ -1,70 +1,134 @@
 "use client";
 import Link from "next/link";
-import { useCallback, useEffect, useState } from "react";
+import { useState } from "react";
 import { Button, ButtonLink, Notice, PageHeader, SampleDataBadge, Skeleton } from "../../components/ui";
 import { api } from "../../lib/api-client";
-import { toErrorView, type ErrorView } from "../common/mappers/errors";
-import { toOrderView, type OrderView } from "../checkout/mappers/order";
+import { toErrorView, toPendingEndpointErrorView, type ErrorView } from "../common/mappers/errors";
+import { toOrderView, type NextAction } from "../checkout/mappers/order";
+import { PaymentSlot, type PaymentSlotState } from "../checkout/payment-slot";
+import { newKey } from "../search/mappers/intent";
 import { sampleOrderView, SAMPLE_ORDERS, type SampleOrderKey } from "./mappers/sample-orders.fixture";
 import { OrderStatus } from "./order-status";
+import { OrderWorkflowPanel } from "./order-workflow";
+import { useOrder } from "./use-order";
 
-type Load = { status: "loading" } | { status: "ready"; order: OrderView } | { status: "error"; error: ErrorView };
+const SAMPLE_LABEL: Record<SampleOrderKey, string> = {
+  pending: "Waiting for tickets",
+  reserved: "Ready to pay",
+  confirmed: "Complete",
+  review: "Manual review",
+  failed: "Failed",
+  cancelled: "Expired",
+};
 
 export function OrderPage({ orderId, sample }: { orderId: string; sample: string | null }) {
   const sampleKey = sample && sample in SAMPLE_ORDERS ? (sample as SampleOrderKey) : null;
-  const [load, setLoad] = useState<Load>({ status: "loading" });
+  if (sampleKey) return <SampleOrder sampleKey={sampleKey} />;
+  return <LiveOrder orderId={orderId} />;
+}
 
-  const fetchOrder = useCallback(() => {
-    setLoad({ status: "loading" });
-    api
-      .getOrder(orderId)
-      .then((o) => setLoad({ status: "ready", order: toOrderView(o) }))
-      .catch((e) => setLoad({ status: "error", error: toErrorView(e) }));
-  }, [orderId]);
+function SampleOrder({ sampleKey }: { sampleKey: SampleOrderKey }) {
+  const order = sampleOrderView(sampleKey);
+  return (
+    <>
+      <PageHeader
+        title="Order preview"
+        description={
+          <span className="flex flex-wrap items-center gap-2">
+            <SampleDataBadge />
+            How an order looks at each stage. Not a real booking, payment or ticket.
+          </span>
+        }
+      />
+      <nav aria-label="Sample stages" className="mb-6 flex flex-wrap gap-2">
+        {(Object.keys(SAMPLE_ORDERS) as SampleOrderKey[]).map((k) => (
+          <Link
+            key={k}
+            href={`/orders/sample?sample=${k}`}
+            aria-current={k === sampleKey ? "page" : undefined}
+            className={`inline-flex min-h-11 items-center rounded-full border px-4 text-label no-underline ${k === sampleKey ? "border-ink bg-ink text-white" : "border-line-strong bg-surface hover:border-ink"}`}
+          >
+            {SAMPLE_LABEL[k]}
+          </Link>
+        ))}
+      </nav>
+      <div className="space-y-6">
+        <OrderWorkflowPanel order={order} polling={false} pollMs={null} lastChecked={null} />
+        <OrderStatus order={order} sample />
+      </div>
+    </>
+  );
+}
 
-  useEffect(() => {
-    if (!sampleKey) fetchOrder();
-  }, [fetchOrder, sampleKey]);
+function LiveOrder({ orderId }: { orderId: string }) {
+  const { load, refresh, setOrder, polling, pollMs, lastChecked } = useOrder(orderId);
+  const [busy, setBusy] = useState(false);
+  const [actionError, setActionError] = useState<ErrorView | null>(null);
+  const [payment, setPayment] = useState<PaymentSlotState | null>(null);
 
-  if (sampleKey)
-    return (
-      <>
-        <PageHeader
-          title="Order preview"
-          description={
-            <span className="flex flex-wrap items-center gap-2">
-              <SampleDataBadge />
-              How an order looks in each state. Not a real booking, payment or ticket.
-            </span>
-          }
-        />
-        <nav aria-label="Sample states" className="mb-6 flex flex-wrap gap-2">
-          {(Object.keys(SAMPLE_ORDERS) as SampleOrderKey[]).map((k) => (
-            <Link
-              key={k}
-              href={`/orders/sample?sample=${k}`}
-              aria-current={k === sampleKey ? "page" : undefined}
-              className={`rounded-full border px-4 py-2 text-label no-underline ${k === sampleKey ? "border-ink bg-ink text-white" : "border-line-strong bg-surface hover:border-ink"}`}
-            >
-              {k[0]!.toUpperCase() + k.slice(1)}
-            </Link>
-          ))}
-        </nav>
-        <OrderStatus order={sampleOrderView(sampleKey)} sample />
-      </>
-    );
+  async function onAction(a: NextAction) {
+    if (load.status !== "ready") return;
+    setBusy(true);
+    setActionError(null);
+    try {
+      if (a === "reserve") setOrder(toOrderView(await api.reserve(orderId, { idempotencyKey: newKey() })));
+      else if (a === "checkout") {
+        const s = await api.checkout({ orderId, idempotencyKey: newKey() });
+        setPayment({ kind: "redirect", url: s.redirectUrl });
+      }
+    } catch (e) {
+      const err = a === "reserve" ? toPendingEndpointErrorView(e) : toErrorView(e);
+      setActionError(err);
+      if (a === "checkout") setPayment({ kind: "unavailable", error: err });
+    } finally {
+      setBusy(false);
+    }
+  }
 
   return (
     <>
-      <PageHeader title="Order status" description={`Reference ${orderId}`} />
-      <div aria-live="polite" aria-busy={load.status === "loading"}>
-        {load.status === "loading" ? (
+      <PageHeader title="Order status" description={`Order reference ${orderId}`} />
+      <div aria-busy={load.status === "loading"}>
+        {load.status === "loading" || load.status === "idle" ? (
           <div className="space-y-4" aria-label="Loading order">
             <Skeleton className="h-48 rounded-lg" />
             <Skeleton className="h-32 rounded-lg" />
           </div>
         ) : load.status === "ready" ? (
-          <OrderStatus order={load.order} />
+          <div className="space-y-6">
+            <OrderWorkflowPanel
+              order={load.order}
+              onAction={onAction}
+              busy={busy}
+              actionError={actionError}
+              polling={polling}
+              pollMs={pollMs}
+              lastChecked={lastChecked}
+              travellerAction={
+                <Notice tone="info" title="Traveller details are needed">
+                  For privacy, traveller details are never saved in your browser, so they need to be entered again from
+                  your trip&apos;s checkout.
+                  <span className="mt-3 block">
+                    <ButtonLink href="/checkout" size="sm">
+                      Go to checkout
+                    </ButtonLink>
+                  </span>
+                </Notice>
+              }
+            />
+            {load.order.workflow?.nextAction === "accept_changes" ? (
+              <Notice tone="warn" title="Accept the changes from your trip">
+                Changes need a fresh price check and a new draft order. Open your trip and continue to checkout to see the
+                new terms.
+              </Notice>
+            ) : null}
+            {payment ? (
+              <section className="rounded-lg border border-line bg-surface p-4 sm:p-6" aria-label="Payment">
+                <PaymentSlot state={payment} />
+              </section>
+            ) : null}
+            <OrderStatus order={load.order} />
+          </div>
         ) : (
           <Notice
             tone={load.error.kind === "not_implemented" ? "info" : "danger"}
@@ -72,13 +136,15 @@ export function OrderPage({ orderId, sample }: { orderId: string; sample: string
               load.error.kind === "not_implemented"
                 ? "Order lookup isn't available yet"
                 : load.error.kind === "not_found"
-                  ? "We couldn't find that order"
-                  : load.error.title
+                  ? "We couldn't find that order in this browser"
+                  : load.error.code === "UNAUTHORIZED"
+                    ? "This browser can't open that order"
+                    : load.error.title
             }
             action={
               <div className="flex flex-wrap gap-2">
                 {load.error.retryable ? (
-                  <Button variant="ghost" size="sm" icon="refresh" onClick={fetchOrder}>
+                  <Button variant="ghost" size="sm" icon="refresh" onClick={() => void refresh()}>
                     Try again
                   </Button>
                 ) : null}
@@ -90,8 +156,12 @@ export function OrderPage({ orderId, sample }: { orderId: string; sample: string
           >
             {load.error.kind === "not_implemented"
               ? "Wayward can't look up orders yet. If a seller emailed you, their confirmation is the source of truth."
-              : load.error.message}
-            {load.error.requestId && load.error.kind !== "not_implemented" ? <span className="mt-1 block text-caption">Support code {load.error.requestId}</span> : null}
+              : load.error.kind === "not_found" || load.error.code === "UNAUTHORIZED"
+                ? "Orders open only in the browser session that created them, and there are no accounts yet. If you cleared cookies or switched browser, use the seller's confirmation email."
+                : load.error.message}
+            {load.error.requestId && load.error.kind === "unknown" ? (
+              <span className="mt-1 block text-caption">Support code {load.error.requestId}</span>
+            ) : null}
           </Notice>
         )}
       </div>

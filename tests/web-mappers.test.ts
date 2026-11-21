@@ -239,14 +239,60 @@ test("order view keeps payment, booking and ticket states separate; samples vali
   assert.equal(confirmed.fulfilmentLabel, "All tickets issued");
 });
 
-test("checkout validation explains age mismatches and sends only contract fields", async () => {
-  const { validateTravellers, toCreateOrderRequest } = await import("../apps/web/src/features/checkout/mappers/order");
-  const t = [{ key: "p1", givenName: "Ana", familyName: "Silva", dateOfBirth: "2000-06-01", age: 30, discounts: [] }];
-  const errs = validateTravellers(t, { email: "ana@", phone: "" }, "2026-11-22");
+test("checkout maps travellers to BookingPassenger/BookingContact with E.164 and documents only when required", async () => {
+  const m = await import("../apps/web/src/features/checkout/mappers/order");
+  const t = [{
+    passengerId: "p1", age: 30, title: "ms" as const, gender: "f" as const, givenName: " Ana ", familyName: "Silva",
+    bornOn: "2000-06-01", document: { type: "passport" as const, number: "X123", issuingCountry: "pt", expiresOn: "2030-01-01" }, discounts: [],
+  }];
+  const noDocs = { required: false, accepted: [] };
+  const errs = m.validateTravellers(t, { email: "ana@", phone: "030 1234567" }, "2026-11-22", noDocs);
   assert.match(errs.email!, /doesn't look complete/);
-  assert.match(errs["t0-dob"]!, /makes them 26/);
-  const req = toCreateOrderRequest("q", "k", t, { email: "ana@example.com", phone: "" }, "2026-11-22");
-  assert.deepEqual(Object.keys(req.passengers[0]!).sort(), ["age", "discounts", "id"]);
+  assert.match(errs.phone!, /Start with \+/);
+  assert.match(errs["t0-dob"]!, /would be 26/);
+  assert.equal(m.normalisePhone("+49 (30) 123-4567"), "+49301234567");
+  assert.equal(m.normalisePhone("0049 30 1234567"), "+49301234567");
+  const base = { quoteId: "q", idempotencyKey: "k", travellers: t, contact: { email: "ana@example.com", phone: "+351 912 345 678" }, travelDateIso: "2026-11-22", acceptChanges: false };
+  const req = m.toCreateOrderRequest({ ...base, policy: noDocs });
+  assert.equal(req.travellers![0]!.passengerId, "p1");
+  assert.equal(req.travellers![0]!.givenName, "Ana");
+  assert.deepEqual(req.travellers![0]!.identityDocuments, []);
+  assert.equal(req.contact!.phoneNumber, "+351912345678");
+  assert.equal("acceptChanges" in req, false);
+  const withDocs = m.toCreateOrderRequest({ ...base, policy: { required: true, accepted: ["passport"] }, acceptChanges: true });
+  assert.equal(withDocs.travellers![0]!.identityDocuments[0]!.issuingCountryCode, "PT");
+  assert.equal(withDocs.acceptChanges, true);
+  const { CreateOrderRequestSchema } = await import("../packages/contracts/src/index");
+  assert.equal(CreateOrderRequestSchema.safeParse(withDocs).success, true);
+  const docErr = m.validateTravellers([{ ...t[0]!, document: { type: "identity_card", number: "", issuingCountry: "P", expiresOn: "2026-01-01" } }], base.contact, "2026-11-22", { required: true, accepted: ["passport"] });
+  assert.ok(docErr["t0-doctype"] && docErr["t0-docnum"] && docErr["t0-doccountry"] && docErr["t0-docexp"]);
+});
+
+test("workflow covers all 13 phases; polls only on poll with default 2000ms; null deadlines stay null", async () => {
+  const m = await import("../apps/web/src/features/checkout/mappers/order");
+  assert.equal(m.PHASES.length, 13);
+  for (const p of m.PHASES) assert.ok(m.PHASE_COPY[p].title && m.PHASE_COPY[p].body);
+  const w = (phase: (typeof m.PHASES)[number], nextAction: m.NextAction, retryAfterMs: number | null = null) =>
+    m.toWorkflowView({ phase, nextAction, checkoutReady: false, reasons: [], retryAfterMs, paymentRequiredBy: null, priceGuaranteeExpiresAt: null });
+  assert.equal(w("reserving", "poll").pollMs, 2000);
+  assert.equal(w("reserving", "poll", 5000).pollMs, 5000);
+  assert.equal(w("reserved", "checkout", 5000).pollMs, null);
+  assert.equal(w("complete", "none").terminal, true);
+  assert.equal(w("expired", "none").terminal, true);
+  assert.equal(w("manual_review", "contact_support").terminal, false);
+  assert.equal(w("manual_review", "contact_support").pollMs, null);
+  assert.equal(w("reserved", "checkout").paymentRequiredBy, null);
+});
+
+test("supplier documents keep the real reference when no file exists; tickets only from tickets[]", async () => {
+  const { sampleOrderView } = await import("../apps/web/src/features/account/mappers/sample-orders.fixture");
+  const o = sampleOrderView("confirmed");
+  const doc = o.bookings[0]!.supplierDocuments[0]!;
+  assert.equal(doc.reference, "SAMPLE-0012345678");
+  assert.equal(doc.downloadUrl, null);
+  assert.equal(doc.issuedAt, null);
+  assert.equal(o.ticketCount, 2);
+  assert.equal(sampleOrderView("reserved").workflow!.paymentRequiredBy, "2026-11-22T09:30:00Z");
 });
 
 test("same-route or overlapping journeys become options, not impossible legs", async () => {
@@ -262,4 +308,19 @@ test("recommended sort demotes tight self-transfers below safer journeys", () =>
   const direct = toOfferJourney(offer("d", { dep: "2026-11-22T08:00:00Z", arr: "2026-11-22T09:00:00Z" }), "s");
   const risky = { ...toOfferJourney(offer("r", { dep: "2026-11-22T08:00:00Z", arr: "2026-11-22T08:50:00Z" }), "s"), worstTransfer: "tight" as const };
   assert.equal(sortJourneys([risky, direct], "recommended")[0]!.id, "d");
+});
+
+test("traveller details never reach browser storage, URLs or logs", () => {
+  const root = join(import.meta.dirname, "../apps/web/src");
+  const checkout = readFileSync(join(root, "features/checkout/checkout-view.tsx"), "utf8");
+  const mapper = readFileSync(join(root, "features/checkout/mappers/order.ts"), "utf8");
+  assert.equal(/sessionStorage\.(get|set|remove)Item/.test(checkout + mapper), false);
+  // The only localStorage write in checkout stores opaque order IDs.
+  const writes = checkout.match(/localStorage\.setItem\([^\n]*/g) ?? [];
+  assert.deepEqual(writes, ["localStorage.setItem(LOCAL_ORDERS_KEY, JSON.stringify([order.id, ...ids.filter((x) => x !== order.id)]));"]);
+  const walk = (dir: string): string[] =>
+    readdirSync(dir).flatMap((n) => (statSync(join(dir, n)).isDirectory() ? (n === "api" ? [] : walk(join(dir, n))) : /\.tsx?$/.test(n) ? [join(dir, n)] : []));
+  for (const f of walk(root)) assert.equal(/console\.(log|info|debug)\(/.test(readFileSync(f, "utf8")), false, f);
+  // Documents are never put in a URL.
+  assert.equal(/uniqueIdentifier[^\n]*(searchParams|URLSearchParams|\?)/.test(mapper), false);
 });

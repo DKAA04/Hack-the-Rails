@@ -13,6 +13,10 @@ import {
   CheckoutRequestSchema,
   CheckoutResponseSchema,
   PlaceLookupResponseSchema,
+  UpdateTravellersRequestSchema,
+  ReserveOrderRequestSchema,
+  type UpdateTravellersRequest,
+  type ReserveOrderRequest,
   type SearchIntent,
   type RevalidationRequest,
   type CreateOrderRequest,
@@ -46,11 +50,13 @@ async function request<T>(
   schema: z.ZodType<T>,
   body?: unknown,
   signal?: AbortSignal,
+  method?: "GET" | "POST" | "PUT",
 ): Promise<T> {
   let response: Response;
   try {
+    // Same-origin fetch sends the HttpOnly wayward_session cookie automatically.
     response = await fetch(`/api${path}`, {
-      method: body === undefined ? "GET" : "POST",
+      method: method ?? (body === undefined ? "GET" : "POST"),
       headers:
         body === undefined ? undefined : { "Content-Type": "application/json" },
       body: body === undefined ? undefined : JSON.stringify(body),
@@ -106,6 +112,25 @@ export const api = {
     request("/orders", OrderSchema, CreateOrderRequestSchema.parse(input)),
   getOrder: (id: string) =>
     request(`/orders/${encodeURIComponent(id)}`, OrderSchema),
+  /** Published contract; backend implementation pending (expect 501/404). */
+  updateTravellers: (orderId: string, input: UpdateTravellersRequest) =>
+    request(
+      `/orders/${encodeURIComponent(orderId)}/travellers`,
+      OrderSchema,
+      UpdateTravellersRequestSchema.parse(input),
+      undefined,
+      "PUT",
+    ),
+  /** Published contract; backend implementation pending (expect 501/404). */
+  reserve: (orderId: string, input: ReserveOrderRequest) =>
+    request(
+      `/orders/${encodeURIComponent(orderId)}/reserve`,
+      OrderSchema,
+      ReserveOrderRequestSchema.parse(input),
+    ),
+  /** Published contract; backend implementation pending (expect 501/404). */
+  reconcile: (orderId: string) =>
+    request(`/orders/${encodeURIComponent(orderId)}/reconcile`, OrderSchema, {}),
   checkout: (input: CheckoutRequest) =>
     request(
       "/payments/checkout",
